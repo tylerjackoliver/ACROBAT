@@ -1,0 +1,23 @@
+cmake_minimum_required (VERSION 3.9)
+
+project (SCROTAL LANGUAGES CXX)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../bin)
+set (CMAKE_CXX_COMPILER icpc)
+
+# Find required C++ libraries
+
+find_package(OpenMP REQUIRED)
+
+# Add source files
+
+add_executable(SCROTAL
+    src/main.cpp
+)
+
+# Set flags
+
+target_compile_options(SCROTAL PRIVATE -qopenmp -ax=AVX2 -Wall -O2 -mkl)
+
+# Add linkers
+
+target_link_libraries(SCROTAL PRIVATE ${OpenMP_CXX_FLAGS})
