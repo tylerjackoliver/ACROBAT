@@ -3,11 +3,14 @@
 
 #include "field.hpp"
 #include <eigen3/Eigen/Core>
-#include <SpiceUsr.h>
 #include "Params.hpp"
 #include "bmeField.hpp"
 #include "emeField.hpp"
 #include "Point.hpp"
+extern "C"
+{
+    #include <SpiceUsr.h>
+}
 
 /*
 * Converts a domain from the BME@Epoch field to the EME2000 frame.
@@ -130,7 +133,7 @@ void EMEtoBME(SCROTAL::bmeField<Point<Type>> &bmeField, SCROTAL::emeField<Point<
 template <typename Type>
 void OEstoBME(SCROTAL::oeField<SCROTAL::OEs> &oeField, SCROTAL::bmeField<Point<Type>>)
 {
-    #pragma omp parallel for
+
     for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
     {
         for (unsigned int j = 0; j < bmeField.getYExtent(); ++j)
@@ -148,25 +151,5 @@ void OEstoBME(SCROTAL::oeField<SCROTAL::OEs> &oeField, SCROTAL::bmeField<Point<T
     }
 
 }
-
-template <typename Type>
-void OEsToState(SCROTAL::OEs &OE, Point<Type> &stateOut)
-{
-    // Convert to SpiceDouble for SPICE library
-    ConstSpiceDouble elts[8] = {OE.rp, OE.ecc, OE.inc, OE.longtd, OE.omega, OE.M, OE.epoch, OE.mu};
-    
-    SpiceDouble et = OE.epoch;
-
-    SpiceDouble state;
-
-    // Call converter
-    conics_c(elts, et, state);
-
-    Point<Type> stateOut;
-
-    // Reassign
-    for (unsigned i = 0; i < 5; ++i) stateOut(i) = state[i];
-
-};
 
 #endif

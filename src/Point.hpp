@@ -120,9 +120,9 @@ struct Point
 template <typename Type>
 std::ostream& operator<<(std::ostream& os, const Point<Type>& in)
 {
-    std::cout << "(r, v): ";
-    for (unsigned i = 0; i < state.size()-1; ++i) std::cout << in[i] << ", ";
-    std::cout << in[state.size()-1] << ")";
+    os << "(r, v): (";
+    for (unsigned i = 0; i < 5; ++i) os << in[i] << ", ";
+    return os << in[5] << ")";
 };
 
 #endif // _POINT_H_

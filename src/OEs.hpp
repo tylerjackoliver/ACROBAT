@@ -2,9 +2,12 @@
 #define __OES_H__
 
 #include "field.hpp"
-#include "SpiceUsr.h"
 #include <ostream>
 #include "Params.hpp"
+extern "C"
+{
+    #include "SpiceUsr.h"
+}
 
 namespace SCROTAL
 {

@@ -2,11 +2,15 @@
 #define __EME_FIELD_H__
 
 #include "field.hpp"
-#include "SpiceUsr.h"
 #include <ostream>
 #include "Params.hpp"
 #include "OEs.hpp"
 #include "coordinateTransforms.hpp"
+
+extern "C"
+{
+    #include "SpiceUsr.h"
+}
 
 namespace SCROTAL
 {
