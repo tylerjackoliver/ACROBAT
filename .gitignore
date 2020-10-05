@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+bin/
+build/
+
+# Include paths
+include/
+lib/
+
+# VSCode turds
+.vscode/

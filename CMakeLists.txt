@@ -19,5 +19,7 @@ add_executable(SCROTAL
 target_compile_options(SCROTAL PRIVATE -qopenmp -ax=AVX2 -Wall -O2 -mkl)
 
 # Add linkers
+target_include_directories(SCROTAL PRIVATE ${CMAKE_BINARY_DIR}/../include/)
 
+target_link_libraries(SCROTAL PRIVATE ${CMAKE_BINARY_DIR}/../lib/cspice.a)
 target_link_libraries(SCROTAL PRIVATE ${OpenMP_CXX_FLAGS})
