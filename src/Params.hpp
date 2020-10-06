@@ -8,7 +8,10 @@ namespace PARAMS
     double LONGTD= 0.0;
     double M     = 0.0;
     double EPOCH = 24023040.;
-    double GM = 1.327e11;
+    double targetGM = 1.327e11; // E.g. Earth
+    double hostGM = 1.e13; // E.g. Sun
+    double R = 6367.; // Planetary radius, in km
+    double RS = 10000.; // Sphere of influence
 }
 
 #endif
