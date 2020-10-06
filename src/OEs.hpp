@@ -15,7 +15,6 @@ namespace SCROTAL
     struct OEs
     {
         public:
-
             SpiceDouble rp = 0.0;
             SpiceDouble ecc = 0.0;
             SpiceDouble inc = 0.0;
@@ -53,7 +52,6 @@ namespace SCROTAL
             }
             return ret;
         }
-
     };
 
     std::ostream& operator<<(std::ostream& os, const OEs& in)
@@ -63,15 +61,12 @@ namespace SCROTAL
 
     class oeField : public field2D<SCROTAL::OEs>
     {
-
         public:
-
             /* Constructor for initialising the position field
             * @param[in] nx The number of points in the \f$x\f$-direction
             * @param[in] ny The number of points in the \f$y\f$-direction
             * @param[in] nz The number of points in the \f$z\f$-direction
             */
-
             oeField(unsigned nx, unsigned ny): SCROTAL::field2D<SCROTAL::OEs>(nx, ny)
             {};
  
@@ -98,13 +93,9 @@ namespace SCROTAL
                         temp.epoch = PARAMS::EPOCH;
 
                         this->setValue(temp, i, j);
-
                     }
                 }
             };
-
     };
-
 }
-
 #endif

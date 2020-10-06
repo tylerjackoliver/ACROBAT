@@ -7,7 +7,6 @@
 
 int main(void)
 {
-
     welcomeMessage();
 
     // Initialise domain
@@ -19,6 +18,4 @@ int main(void)
     bmeDomain.initialiseField(oeDomain);
 
     std::cout << bmeDomain.getValue(50, 50);
-
-
 }

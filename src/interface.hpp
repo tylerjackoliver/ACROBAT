@@ -3,7 +3,6 @@
 
 struct opts
 {
-
     // Domain settings
     double xDomainMin = 0.0;
     double xDomainMax = 0.0;
@@ -18,14 +17,12 @@ struct opts
 
     // Mass parameter
     double mu = 0.;
-
 };
 
 opts OPTIONS;
 
 void welcomeMessage()
 {
-
     std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
     std::cout << "             WELCOME TO SCROTAL              " << std::endl;
     std::cout << "             ~~~~~~~~~~~~~~~~~~              " << std::endl;
@@ -42,7 +39,6 @@ void welcomeMessage()
     std::cout << "Discretisations in X: " << OPTIONS.nX          << std::endl;
     std::cout << "Discretisations in Y: " << OPTIONS.nY          << std::endl;
     std::cout << "System mass parameter: " << OPTIONS.mu         << std::endl;
-
 };
 
 #endif

@@ -27,11 +27,7 @@ namespace SCROTAL
     template <class Type>
     class field2D
     {
-
-        private:
-                    
         protected:
-
             typedef std::vector<Type> state_type;           // Integrator state type
             unsigned nx_;                                   // X-extent
             unsigned ny_;                                   // Y-extent
@@ -40,7 +36,6 @@ namespace SCROTAL
             typedef boost::multi_array_types::extent_range range;
 
         public:
-
             /* @brief Constructor for the field class.
              *
              * @param nx The number of points in x
@@ -49,7 +44,6 @@ namespace SCROTAL
             field2D(unsigned nx, unsigned ny) : nx_{nx}, ny_{ny}
             {
                 // Initialise data to be the correct size based on xDim/yDim/zDim
-
                 typename tempType::extent_gen extents;
                 this->data_.resize(extents[nx][ny]);
             }
@@ -61,9 +55,7 @@ namespace SCROTAL
              */
             Type getValue(int i, int j)
             {
-    
                 return this->data_[i][j];
-
             }
 
             /* @brief Set a value of the underlying array
@@ -74,9 +66,7 @@ namespace SCROTAL
              */
             void setValue(Type value, unsigned i, unsigned j)
             {
-
                 this->data_[i][j] = value;
-
             }
 
             /* @brief Get the number of coordinates in x
@@ -98,18 +88,12 @@ namespace SCROTAL
             {
                 return this->ny_;
             }
-
-
     };
 
     template <class Type>
     class field3D
     {
-
-        private:
-                    
         protected:
-
             typedef std::vector<Type> state_type;           // Integrator state type
             unsigned nx_;                                   // X-extent
             unsigned ny_;                                   // Y-extent
@@ -119,7 +103,6 @@ namespace SCROTAL
             typedef boost::multi_array_types::extent_range range;
 
         public:
-
             /* @brief Constructor for the field class.
              *
              * @param nx The number of points in x
@@ -129,7 +112,6 @@ namespace SCROTAL
             field3D(unsigned nx, unsigned ny, unsigned nz) : nx_(nx), ny_(ny), nz_(nz)
             {
                 // Initialise data to be the correct size based on xDim/yDim/zDim
-
                 typename tempType::extent_gen extents;
                 this->data_.resize(extents[nx][ny][nz]);
             }
@@ -141,9 +123,7 @@ namespace SCROTAL
              */
             Type getValue(int i, int j, int k)
             {
-    
                 return this->data_[i][j][k];
-
             }
 
             /* @brief Set a value of the underlying array
@@ -154,9 +134,7 @@ namespace SCROTAL
              */
             void setValue(Type value, unsigned i, unsigned j, unsigned k)
             {
-
                 this->data_[i][j][k] = value;
-
             }
 
             /* @brief Get the number of coordinates in x
@@ -185,10 +163,7 @@ namespace SCROTAL
             {
                 return this->nz_;
             }
-
-
     };
 
 }; // namespace
-
 #endif

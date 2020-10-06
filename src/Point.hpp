@@ -48,7 +48,6 @@ struct Point
     // Operator overloads
     Point& operator+=(Point const& rhs)
     {
-
         for (unsigned i = 0; i < this->state.size(); ++i) this->state[i] += rhs.state[i];
 
         return *this;
@@ -56,7 +55,6 @@ struct Point
 
     Point& operator-=(Point const& rhs)
     {
-
         for (unsigned i = 0; i < this->state.size(); ++i) this->state[i] -= rhs.state[i];
 
         return *this;
@@ -65,7 +63,6 @@ struct Point
     template <typename multType>
     Point& operator*=(multType a)
     {
-
         for (unsigned i = 0; i < this->state.size(); ++i) this->state[i] *= a;
 
         return *this;        
@@ -87,7 +84,6 @@ struct Point
 
     Point operator-(Point const &a) const
     {
-
         std::vector<Type> ret(state.size());
         for (unsigned i = 0; i < this->state.size(); ++i) ret[i] = this->state[i] - a[i];
 
@@ -96,7 +92,6 @@ struct Point
 
     bool operator==(const Point& a) const
     {
-
         return this->state == a.state;
     }
 
@@ -114,7 +109,6 @@ struct Point
     {
         return this->state[a];
     }
-
 };
 
 template <typename Type>

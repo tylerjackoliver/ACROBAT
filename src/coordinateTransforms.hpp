@@ -70,11 +70,9 @@ void BMEtoEME(SCROTAL::bmeField<Point<Type>> &bmeField, SCROTAL::emeField<Point<
 
                 // Assign
                 emeField.setValue(i, j, k, &temp);
-
             }
         }
     }
-
 }
 
 template <typename Type>
@@ -123,33 +121,26 @@ void EMEtoBME(SCROTAL::bmeField<Point<Type>> &bmeField, SCROTAL::emeField<Point<
 
                 // Assign
                 bmeField.setValue(i, j, k, &temp);
-
             }
         }
     }
-
 }
 
 template <typename Type>
 void OEstoBME(SCROTAL::oeField<SCROTAL::OEs> &oeField, SCROTAL::bmeField<Point<Type>>)
 {
-
     for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
     {
         for (unsigned int j = 0; j < bmeField.getYExtent(); ++j)
         {
             for (unsigned int k = 0; k < bmeField.getZExtent(); ++k)
             {
-
                 SCROTAL::OEs tempOE = oeField.getValue(i, j, k);
                 Point<Type> tempPoint;
                 OEsToState(&tempOE, &tempPoint);
                 bmeField.setValue(i, j, k, &tempPoint);
-
             }
         }
     }
-
 }
-
 #endif

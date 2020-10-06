@@ -19,7 +19,6 @@ namespace SCROTAL
     class emeField : public field3D<Type>
     {
         public:
-
             emeField(int nx, int ny, int nz) : field3D<Type>(nx, ny, nz)
             {};
 
@@ -27,7 +26,6 @@ namespace SCROTAL
             {
                 OEstoEME(input, this);
             }
-
     };
 
 };
