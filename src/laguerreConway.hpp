@@ -1,12 +1,13 @@
 #ifndef __LAGUERRE_CONWAY_H__
 #define __LAGUERRE_CONWAY_H__
 
+/* Implements the Laguerre-Conway method for solving Kepler's equation */
 template <typename Type, typename Function>
-void laguerreConway(Type &x0, Type &xf, Type &eps, Function f, Function fp, Function fpp)
+void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function f, Function fp, Function fpp)
 {
     const int n = 5;        // Tuning parameter - 5 for now, as per paper
     Type tolerance = 100.   // Stopping tolerance
-    Type xi = x0;
+    Type xi = E0;
 
     while (tolerance >= eps)
     {   
@@ -15,7 +16,7 @@ void laguerreConway(Type &x0, Type &xf, Type &eps, Function f, Function fp, Func
         Type deriv = fp(xi);
         Type dDeriv = fpp(xi);
         // Compute numerator, square root
-        Type numerator = - n * f(x0);
+        Type numerator = - n * f(E0);
         Type root = std::sqrt( fabs((n-1) * (n-1) * (fp * fp) - n * (n-1) * fval * dDeriv) );
         // Denominator is such that absolute value is maximised
         Type denominator = std::max( fabs(fp + root), fabs(fp - root) );
@@ -24,7 +25,28 @@ void laguerreConway(Type &x0, Type &xf, Type &eps, Function f, Function fp, Func
         xi += delta_n1;
         tolerance = delta_n1; // Change in latest iterate
     };
-    xf = xi;
+    Ef = xi;
+}
+
+/* Computes Kepler's equation for a given input value X */
+template <typename Type>
+Type keplersEquation(const Type E, const Type ecc, const Type M)
+{
+    return E - ecc * std::sin(E) - M;
+}
+
+/* Computes the derivative of Kepler's equation for a given input value X */
+template <typename Type>
+Type dMdE(const Type E, const Type ecc)
+{
+    return 1 - ecc * std::cos(E);
+}
+
+/* Computes the second derivative of Kepler's equation */
+template <typename Type>
+Type dMMdEE(const Type E, const Type ecc)
+{
+    return ecc * std::sin(E);
 }
 
 #endif
