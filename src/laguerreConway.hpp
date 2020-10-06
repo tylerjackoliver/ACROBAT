@@ -8,8 +8,9 @@ void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function 
     const int n = 5;        // Tuning parameter - 5 for now, as per paper
     Type tolerance = 100.   // Stopping tolerance
     Type xi = E0;
+    unsigned num_iters = 0;
 
-    while (tolerance >= eps)
+    while (tolerance >= eps && num_iters < 10) // Iteration should be within 4 iterations for majority of E, ecc
     {   
         // Pre-compute function evaluations and derivatives
         Type fval = f(xi);
@@ -24,6 +25,7 @@ void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function 
         Type delta_n1 = numerator / denominator;
         xi += delta_n1;
         tolerance = delta_n1; // Change in latest iterate
+        num_iters++;
     };
     Ef = xi;
 }
@@ -47,6 +49,31 @@ template <typename Type>
 Type dMMdEE(const Type E, const Type ecc)
 {
     return ecc * std::sin(E);
+}
+
+/* Wrapper: Converts from Mean anomaly to Eccentric anomaly */
+template <typename Type>
+Type meanToEccentric(Type &M, Type &ecc, Type &eps)
+{
+    laguerreConway(M, E, ecc, M, eps, keplersEquation, dMdE, dMMdEE);
+}
+
+/* Converts from Eccentric anomaly to true anomaly */
+template <typename Type>
+Type eccentricToTrue(Type &E, Type &ecc)
+{
+    double pi = 4.0 * atan(1.0);
+    Type root = sqrt::( (1-ecc) / (1+ecc) );
+    Type inv = root * std::tan(E / 2.0);
+    return ( 2.0 * std::atan(inv) ) % 2. * pi;
+}
+
+/* Wrapper: Converts from Mean to True anomaly */
+template <typename Type>
+Type meanToTrue(Type &M, Type &ecc, Type &eps, Type &f)
+{
+    Type E =  meanToEccentric(M, ecc, eps);
+    f = eccentricToTrue(E, ecc);
 }
 
 #endif
