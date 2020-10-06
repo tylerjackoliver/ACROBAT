@@ -70,8 +70,9 @@ Type eccentricToTrue(Type &E, Type &ecc)
 
 /* Wrapper: Converts from Mean to True anomaly */
 template <typename Type>
-Type meanToTrue(Type &M, Type &ecc, Type &eps, Type &f)
+Type meanToTrue(Type &M, Type &ecc, Type &f)
 {
+    double eps = 1.e-012;
     Type E =  meanToEccentric(M, ecc, eps);
     f = eccentricToTrue(E, ecc);
 }
