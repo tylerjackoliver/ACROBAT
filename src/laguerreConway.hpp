@@ -13,9 +13,9 @@ void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function 
     while (tolerance >= eps && num_iters < 10) // Iteration should be within 4 iterations for majority of E, ecc
     {   
         // Pre-compute function evaluations and derivatives
-        Type fval = f(xi);
-        Type deriv = fp(xi);
-        Type dDeriv = fpp(xi);
+        Type fval = f(xi, ecc, M);
+        Type deriv = fp(xi, ecc);
+        Type dDeriv = fpp(xi, ecc);
         // Compute numerator, square root
         Type numerator = - n * f(E0);
         Type root = std::sqrt( fabs((n-1) * (n-1) * (fp * fp) - n * (n-1) * fval * dDeriv) );
