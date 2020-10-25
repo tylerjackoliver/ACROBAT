@@ -7,8 +7,6 @@
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
-[![LinkedIn][linkedin-shield]][linkedin-url]
-
 
 
 <!-- PROJECT LOGO -->
@@ -43,8 +41,6 @@
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
-
-[![Product Name Screen Shot][product-screenshot]](https://example.com)
 
 As part of ongoing research into ballistic capture, this program is designed to recreate results on identifying ballistic capture sets for generic systems in the Elliptic-Restricted Three-body Problem (ER3BP).
 The program is designed to mirror the latest research on ballistic capture by Luo & Topputo, where the equations of motion are studied in a planet-centered inertial frame under the general equations of n-body motion for three bodies;
