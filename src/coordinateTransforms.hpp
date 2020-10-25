@@ -7,6 +7,7 @@
 #include "bmeField.hpp"
 #include "emeField.hpp"
 #include "Point.hpp"
+#include <stdexcept>
 extern "C"
 {
     #include <SpiceUsr.h>
@@ -21,7 +22,26 @@ extern "C"
 
 void getSpinAxisDirection(double &a, double &d, double &epoch)
 {
-    a = 4.0 * a;
+    // Convert target string to integer ID
+    extern "C"
+    {
+        SpiceInt code;
+        SpiceBoolean found;
+        SpiceDouble RA, DEC, et, w, lambda;
+        et = epoch;
+        ConstSpiceChar name[] = PARAMS::TARGET;
+
+        // Call the conversion routine
+        bods2c_c(name, &code, &found);
+
+        // Check if it was found or not
+        if (!found) throw std::invalid_argument("Bad TARGET name string in getSpinAxisDirection.");
+
+        // Now compute RA and DEC for the given identifier
+        bodeul_(&code, &et, &RA, &DEC, &w, &lambda);
+        a = RA;
+        d = DEC;
+    }
 }
 
 /* @brief Converts a BME@Epoch field to an EME2000 field.
