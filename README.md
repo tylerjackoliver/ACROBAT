@@ -85,7 +85,7 @@ sh build.sh
 <!-- CONTACT -->
 ## Contact
 
-Your Name - [@tylerjackoliver](https://twitter.com/tylerjackoliver) - jack.tyler@soton.ac.uk
+Jack Tyler - [@tylerjackoliver](https://twitter.com/tylerjackoliver) - jack.tyler@soton.ac.uk
 
 Project Link: [https://github.com/tylerjackoliver/ACROBAT](https://github.com/tylerjackoliver/ACROBAT)
 
