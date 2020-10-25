@@ -25,7 +25,7 @@ void getSpinAxisDirection(double &a, double &d, double &epoch)
 }
 
 template <typename Type>
-void BMEtoEME(SCROTAL::bmeField<Point<Type>> &bmeField, SCROTAL::emeField<Point<Type>> &emeField)
+void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
 {
     // Get right ascension and declination values at epoch of the bmeField
     double alpha, delta;
@@ -76,7 +76,7 @@ void BMEtoEME(SCROTAL::bmeField<Point<Type>> &bmeField, SCROTAL::emeField<Point<
 }
 
 template <typename Type>
-void EMEtoBME(SCROTAL::bmeField<Point<Type>> &bmeField, SCROTAL::emeField<Point<Type>> &emeField)
+void EMEtoBME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
 {
     // Get right ascension and declination values at epoch of the bmeField
     double alpha, delta;
@@ -127,7 +127,7 @@ void EMEtoBME(SCROTAL::bmeField<Point<Type>> &bmeField, SCROTAL::emeField<Point<
 }
 
 template <typename Type>
-void OEstoBME(SCROTAL::oeField<SCROTAL::OEs> &oeField, SCROTAL::bmeField<Point<Type>>)
+void OEstoBME(ACROBAT::oeField<ACROBAT::OEs> &oeField, ACROBAT::bmeField<Point<Type>>)
 {
     for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
     {
@@ -135,7 +135,7 @@ void OEstoBME(SCROTAL::oeField<SCROTAL::OEs> &oeField, SCROTAL::bmeField<Point<T
         {
             for (unsigned int k = 0; k < bmeField.getZExtent(); ++k)
             {
-                SCROTAL::OEs tempOE = oeField.getValue(i, j, k);
+                ACROBAT::OEs tempOE = oeField.getValue(i, j, k);
                 Point<Type> tempPoint;
                 OEsToState(&tempOE, &tempPoint);
                 bmeField.setValue(i, j, k, &tempPoint);

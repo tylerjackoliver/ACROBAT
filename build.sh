@@ -6,5 +6,5 @@ make
 )
 (
 cd ../bin
-./SCROTAL
+./ACROBAT
 )

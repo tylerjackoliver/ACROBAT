@@ -22,7 +22,7 @@ void operator<<(std::ostream& out, std::vector<Type>& val)
     std::cout << ")";
 }
 
-namespace SCROTAL
+namespace ACROBAT
 {
     template <class Type>
     class field2D

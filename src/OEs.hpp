@@ -9,7 +9,7 @@ extern "C"
     #include "SpiceUsr.h"
 }
 
-namespace SCROTAL
+namespace ACROBAT
 {
 
     struct OEs
@@ -59,7 +59,7 @@ namespace SCROTAL
         return (os << "OEs: (" << in.rp << ", " << in.ecc << ", " << in.inc << ", " << in.longtd << ", " << in.omega << ", " << in.M << ", " << in.epoch << ")");
     }
 
-    class oeField : public field2D<SCROTAL::OEs>
+    class oeField : public field2D<ACROBAT::OEs>
     {
         public:
             /* Constructor for initialising the position field
@@ -67,7 +67,7 @@ namespace SCROTAL
             * @param[in] ny The number of points in the \f$y\f$-direction
             * @param[in] nz The number of points in the \f$z\f$-direction
             */
-            oeField(unsigned nx, unsigned ny): SCROTAL::field2D<SCROTAL::OEs>(nx, ny)
+            oeField(unsigned nx, unsigned ny): ACROBAT::field2D<ACROBAT::OEs>(nx, ny)
             {};
  
             void initialiseField(double rMin, double rMax, double omegaMin, double omegaMax)
@@ -77,7 +77,7 @@ namespace SCROTAL
                 {
                     for (unsigned j = 0; j < this->getYExtent(); ++j)
                     {
-                        SCROTAL::OEs temp;
+                        ACROBAT::OEs temp;
                         SpiceDouble r0, omega;
 
                         r0 = rMin + (rMax - rMin) / (this->nx_-1) * i;

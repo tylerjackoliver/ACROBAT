@@ -13,6 +13,12 @@ extern "C"
 }
 
 /* Computes the direction vector to the Sun */
+
+
+/* @brief Computes the direction vector to the Sun from the spacecraft.
+ * @param[in] r: Vector to the Sun; Eigen::Vector<Type, Size>
+ * @param[in] t: Time at which this vector is desired; const Type
+ */
 template <typename Type>
 void getSunVector(Eigen::Vector<Type, 3> &r, const Type t)
 {
@@ -20,8 +26,8 @@ void getSunVector(Eigen::Vector<Type, 3> &r, const Type t)
     double trueAnomaly;
 
     // Get orbital elements of host about target in the EME2000 frame (actually the J2000 frame in SPICE!)
-    SCROTAL::OEs sunOEs = getOEs(t, PARAMS::host, PARAMS::target); // Need orientation of the Sun wrt planet we're seeking ballistic capture orbits for
-    SCROTAL::OEs planetOEs = getOEs(t, PARAMS::target, PARAMS::host); // Need a, e of planet we're constructing ballistic orbits for
+    ACROBAT::OEs sunOEs = getOEs(t, PARAMS::host, PARAMS::target);      // Need orientation of the Sun wrt planet we're seeking ballistic capture orbits for
+    ACROBAT::OEs planetOEs = getOEs(t, PARAMS::target, PARAMS::host);   // Need a, e of planet we're constructing ballistic orbits for
 
     // Get the true anomaly of the Sun about the target planet
     meanToTrue(sunOEs.M, sunOEs.ecc, &trueAnomaly);
@@ -36,10 +42,15 @@ void getSunVector(Eigen::Vector<Type, 3> &r, const Type t)
     r = scalar * rotationVector;
 }
 
-/* C++ wrapper to the C implementation */
-SCROTAL::OEs getOEs(double t, std::string body, std::string obs)
+/* @brief C++ wrapper to the SPICE orbital element routines.
+ * @param[in] t: Time (ephemeris seconds) at which the orbital elements are required.
+ * @param[in] body: String identifying the body the orbital elements are sought for.
+ * @param[in] obs: String identifying the body the orbital elements are defined about/
+ * @returns ACROBAT::OEs struct, holding the orbital elements of body about obs at time t.
+ */
+ACROBAT::OEs getOEs(double t, std::string body, std::string obs)
 {
-    SCROTAL::OEs ret;
+    ACROBAT::OEs ret;
     extern "C"
     {
         ConstSpiceChar body[] = "Sun";
@@ -54,6 +65,7 @@ SCROTAL::OEs getOEs(double t, std::string body, std::string obs)
         spkezr_c(body, et, ref, abcorr, obs, starg, &lt);
         oscelt_c(state, et, PARAMS::GM, elts);
     }
+
     // Copy elts into vector
     ret.rp = elts[0];
     ret.ecc = elts[1];
@@ -66,8 +78,13 @@ SCROTAL::OEs getOEs(double t, std::string body, std::string obs)
     return ret;
 }
 
+/* @brief Get the rotation matrix to move from the EME2000 to the BME2000 frame.
+ * @param[inout] rotationVector: Eigen::Vector<Type, 3> containing the rotation vector
+ * @param[in] sunOEs: Reference to an OEs struct containing the orbital elements of the Sun
+ * @param[in] trueAnomaly: Current true anomaly of planet around the Sun.
+ */
 template <typename Type>
-void getRotationMatrix(Eigen::Vector<Type, 3> &rotationVector, SCROTAL::OEs &sunOEs, double &trueAnomaly)
+void getRotationMatrix(Eigen::Vector<Type, 3> &rotationVector, ACROBAT::OEs &sunOEs, double &trueAnomaly)
 {
     double theta = sunOEs.omega + trueAnomaly;
     

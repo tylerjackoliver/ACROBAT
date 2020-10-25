@@ -24,7 +24,7 @@ opts OPTIONS;
 void welcomeMessage()
 {
     std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
-    std::cout << "             WELCOME TO SCROTAL              " << std::endl;
+    std::cout << "             WELCOME TO ACROBAT              " << std::endl;
     std::cout << "             ~~~~~~~~~~~~~~~~~~              " << std::endl;
     std::cout << "  The balliStic CaptuRe OrbiT Analysis tooL  " << std::endl;
     std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;

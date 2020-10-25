@@ -12,7 +12,7 @@ extern "C"
     #include "SpiceUsr.h"
 }
 
-namespace SCROTAL
+namespace ACROBAT
 {
 
     template <class Type>
@@ -22,7 +22,7 @@ namespace SCROTAL
             emeField(int nx, int ny, int nz) : field3D<Type>(nx, ny, nz)
             {};
 
-            void initialiseField(SCROTAL::oeField &input)
+            void initialiseField(ACROBAT::oeField &input)
             {
                 OEstoEME(input, this);
             }
