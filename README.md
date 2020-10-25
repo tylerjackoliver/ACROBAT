@@ -71,7 +71,7 @@ Any compiler used must support the C++11 standard. At the moment, the program it
 ```sh
 git clone https://github.com/tylerjackoliver/ACROBAT.git
 ```
-2. Install NPM packages
+2. Run the CMake wrapper
 ```sh
 sh build.sh
 ```
