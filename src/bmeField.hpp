@@ -43,6 +43,10 @@ namespace ACROBAT
 
 };
 
+/* @brief Computes orbital elements to a position, velocity vector.
+   @param[in] OE An ACROBAT::OEs structure corresponding to the elements to convert.
+   @param[out] stateOut Point<double> containing the position, velocity vector.
+*/
 extern "C" void OEsToState(ACROBAT::OEs &OE, Point<double> &stateOut)
 {
     // Convert to SpiceDouble for SPICE library

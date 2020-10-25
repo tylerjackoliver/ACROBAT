@@ -24,11 +24,17 @@ void getSpinAxisDirection(double &a, double &d, double &epoch)
     a = 4.0 * a;
 }
 
+/* @brief Converts a BME@Epoch field to an EME2000 field.
+   @param[in] bmeField: bmeField to convert
+   @param[out] emeField: emeField to store the conversion in.
+*/
 template <typename Type>
 void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
 {
     // Get right ascension and declination values at epoch of the bmeField
     double alpha, delta;
+
+    // Compute the direction of the spin axis
     getSpinAxisDirection(&alpha, &delta, PARAMS::EPOCH)
 
     // Construct the transformation matrix
@@ -39,12 +45,12 @@ void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<
 
     Eigen::Matrix3d<Type> Qbe;
 
+    // Create the transformation matrix
     Qbe(0,0) = -sina; Qbe(0,1) = -cosa * sind; Qbe(0,2) = cosa * cosd;
     Qbe(1,0) = cosa ; Qbe(1,1) = -sina * sind; Qbe(1,2) = cosd * sina;
     Qbe(2,0) = 0.0  ; Qbe(2,1) = cosd        ; Qbe(2,2) = sind;
 
     // Apply Qbe to every state in bmeField
-
     #pragma omp parallel for shared(Qbe)
     for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
     {
@@ -75,6 +81,10 @@ void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<
     }
 }
 
+/* @brief Converts an EME2000 fiel to a BME@Epoch field
+   @param[in] emeField: emeField to convert
+   @param[out] bmeField: bmeField to store the conversion in.
+*/
 template <typename Type>
 void EMEtoBME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
 {
@@ -126,6 +136,10 @@ void EMEtoBME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<
     }
 }
 
+/* @brief Converts an orbital element field to a BME field.
+   @param[in] oeField: ACROBAT::oeField of ACROBAT::OEs to convert
+   @param[in] bmeField: ACROBAT::bmeField of Point<Type> to store the conversion.
+*/
 template <typename Type>
 void OEstoBME(ACROBAT::oeField<ACROBAT::OEs> &oeField, ACROBAT::bmeField<Point<Type>>)
 {
