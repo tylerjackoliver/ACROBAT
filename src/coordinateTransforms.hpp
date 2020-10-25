@@ -13,13 +13,11 @@ extern "C"
     #include <SpiceUsr.h>
 }
 
-/*
-* Converts a domain from the BME@Epoch field to the EME2000 frame.
-*
-* Assumes epoch is coded into the domain field.
-*
+/* @brief Obtains the right ascension $\alpha$ and declination $\delta$ for the PARAMS::TARGET body at a given epoch.
+*  @param[out] a The right ascension
+*  @param[out] d The declination
+*  @param[in] epoch The epoch of the RA and DEC pair.
 */
-
 void getSpinAxisDirection(double &a, double &d, double &epoch)
 {
     // Convert target string to integer ID
