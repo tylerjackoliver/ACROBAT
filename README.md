@@ -18,10 +18,9 @@
   <h3 align="center">ACROBAT: bAllistic CaptuRe OrBit Analysis Tool</h3>
 
   <p align="center">
-    This program identifies sets of points in the Elliptic-Restricted Three-body Problem that lead to temporary ballistic capture, as per Z.F. Luo; F. Topputo; 2016.
+    This program identifies sets of points in the Elliptic-Restricted Three-body Problem that lead to temporary ballistic capture, as per <a href="https://doi.org/10.1007/s10569-014-9580-5">Z.F. Luo et. al., 2014</a>.
     <br />
     <a href="https://github.com/tylerjackoliver/ACROBAT/issues">Report Bug</a>
-    ·
   </p>
 </p>
 
@@ -34,7 +33,7 @@
   * [Built With](#built-with)
 * [Getting Started](#getting-started)
   * [Prerequisites](#prerequisites)
-  * [Installation](#installation)
+  * [Installation](#building)
 * [Contact](#contact)
 
 
@@ -48,6 +47,12 @@ The program is designed to mirror the latest research on ballistic capture by Lu
 
 This program leverages CPU parallelism to reduce program run-time.
 
+### Changes from the previous literature
+
+The previous literature used the [Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2009](https://doi.org/10.1007/s10569-010-9320-4) to obtain Right Ascension and Declination angles for the definition of the Body Mean Equator frame at a given epoch. This is labour-intensive, as often these are expansions of multiple nutation and precession angles and are unique for each target body. Instead, this code interfaces directly with the SPICE library to extract this information from binary PCK files that are published regularly by NAIF.
+
+Specifically, the function `bods2c_c` ([here](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/bods2c_c.html)) is used to convert from a body name or identification string to the integer ID representation contained in the given binary PCK file. The `bodeul_` function (F2C'd as part of the SPICE library and undocumented) can then be used to determine RA and DEC to the accuracy contained in the SPK files. The likelihood of mistakes is reduced, at the cost of program execution time being slightly -- _slightly_ -- higher. The FORTRAN documentation for the equivalent `BODEUL` function is available [here](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/FORTRAN/spicelib/bodeul.html).
+
 ### Built With
 
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
@@ -55,6 +60,7 @@ This program leverages CPU parallelism to reduce program run-time.
 * [OpenMP](https://www.openmp.org/)
 * [Intel MKL](https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html)
 * [CMake](https://cmake.org/)
+* [SPICE](https://naif.jpl.nasa.gov/naif/)
 
 <!-- GETTING STARTED -->
 ## Getting Started
