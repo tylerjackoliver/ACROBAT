@@ -93,6 +93,11 @@ void getRotationMatrix(Eigen::Vector<Type, 3> &rotationVector, ACROBAT::OEs &sun
     rotationVector(2) = -std::sin(theta) * std::sin(sunOEs.inc);
 }
 
+/* @brief Compute the derivative vector of the current state for numerical integration routines.
+*  @param[in] x Eigen::Vector<Type, 6> of the initial [r, v] vector for the particle
+*  @param[out] dx Eigen::Vector<Type, 6> corresponding to the derivative of x
+*  @param[in] t Current integration time-step
+*/
 template <typename Type>
 void forceFunction(Eigen::Vector<Type, 6> &x, Eigen::Vector<Type, 6> &dx, const double t)
 {
@@ -108,11 +113,13 @@ void forceFunction(Eigen::Vector<Type, 6> &x, Eigen::Vector<Type, 6> &dx, const 
     positionVector(1) = x(1);
     positionVector(2) = x(2);
 
-    getSunVector(&sunVector, t);
+    double currentTime = PARAMS::EPOCH + t; // t is measured in seconds
+
+    getSunVector(&sunVector, currentTime);
     posDifference = positionVector - sunVector;
 
     solarTerm = PARAMS::hostGM * (sunVector / ( std::pow(sunVector.norm(), 3) ) + ( posDifference / ( std::pow(posDifference.norm(), 3) ) ));
-    velocityVector = -PARAMS::targetGM / positionVector.norm() - solarTerm;
+    velocityVector = -PARAMS::targetGM * positionVector / ( std::pow(positionVector.norm(), 3) ) - solarTerm;
 
     dx(3) = velocityVector(0);
     dx(4) = velocityVector(1);
