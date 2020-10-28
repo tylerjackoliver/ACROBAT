@@ -1,18 +1,16 @@
 # ACROBAT
 
-[![CodeFactor](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat/badge?s=24e1157e0259c7ca0a3a435459b55a10881e7481)](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat)
 
+[![CodeFactor](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat/badge?s=24e1157e0259c7ca0a3a435459b55a10881e7481)](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat)
 [![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
+[![Issues](https://img.shields.io/github/issues/tylerjackoliver/ACROBAT)]
 [![MIT License][license-shield]][license-url]
 
 
 <!-- PROJECT LOGO -->
 <br />
 <p align="center">
-  <a href="https://github.com/github_username/repo_name">
+  <a href="https://github.com/tylerjackoliver/ACROBAT">
     <img src="images/logo.png" alt="Logo" width="80" height="80">
   </a>
   <h3 align="center">ACROBAT: bAllistic CaptuRe OrBit Analysis Tool</h3>
@@ -92,15 +90,9 @@ Project Link: [https://github.com/tylerjackoliver/ACROBAT](https://github.com/ty
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 [contributors-shield]: https://img.shields.io/github/contributors/tylerjackoliver/repo.svg?style=flat-square
-[contributors-url]: https://github.com/tylerjackoliver/repo/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/tylerjackoliver/repo.svg?style=flat-square
-[forks-url]: https://github.com/tylerjackoliver/repo/network/members
-[stars-shield]: https://img.shields.io/github/stars/tylerjackoliver/repo.svg?style=flat-square
-[stars-url]: https://github.com/tylerjackoliver/repo/stargazers
-[issues-shield]: https://img.shields.io/github/issues/tylerjackoliver/repo.svg?style=flat-square
-[issues-url]: https://github.com/tylerjackoliver/repo/issues
-[license-shield]: https://img.shields.io/github/license/tylerjackoliver/repo.svg?style=flat-square
-[license-url]: https://github.com/tylerjackoliver/repo/blob/master/LICENSE.txt
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=flat-square&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/tylerjackoliver
+[contributors-url]: https://img.shields.io/github/contributors/tylerjackoliver/ACROBAT
+[issues-shield]: https://img.shields.io/github/issues/tylerjackoliver/ACROBAT.svg?style=flat-square
+[issues-url]: https://img.shields.io/github/issues/tylerjackoliver/ACROBAT
+[license-shield]: ""
+[license-url]: https://img.shields.io/github/license/tylerjackoliver/ACROBAT
 [product-screenshot]: images/screenshot.png
