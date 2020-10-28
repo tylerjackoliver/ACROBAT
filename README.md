@@ -3,7 +3,7 @@
 
 [![CodeFactor](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat/badge?s=24e1157e0259c7ca0a3a435459b55a10881e7481)](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat)
 [![Contributors][contributors-shield]][contributors-url]
-![Issues](https://img.shields.io/github/issues/tylerjackoliver/ACROBAT)
+[![Issues](https://img.shields.io/github/issues/tylerjackoliver/ACROBAT)](https://github.com/tylerjackoliver/ACROBAT/issues)
 [![MIT License][license-shield]][license-url]
 
 
@@ -89,9 +89,9 @@ Project Link: [https://github.com/tylerjackoliver/ACROBAT](https://github.com/ty
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/tylerjackoliver/repo.svg?style=flat-square
+[contributors-shield]: https://img.shields.io/github/contributors/tylerjackoliver/ACROBAT
 [contributors-url]: https://img.shields.io/github/contributors/tylerjackoliver/ACROBAT
-[issues-shield]: https://img.shields.io/github/issues/tylerjackoliver/ACROBAT.svg?style=flat-square
+[issues-shield]: https://github.com/tylerjackoliver/ACROBAT/issues
 [issues-url]: https://img.shields.io/github/issues/tylerjackoliver/ACROBAT
 [license-shield]: ""
 [license-url]: https://img.shields.io/github/license/tylerjackoliver/ACROBAT
