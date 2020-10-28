@@ -4,7 +4,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat/badge?s=24e1157e0259c7ca0a3a435459b55a10881e7481)](https://www.codefactor.io/repository/github/tylerjackoliver/acrobat)
 [![Contributors][contributors-shield]][contributors-url]
 [![Issues](https://img.shields.io/github/issues/tylerjackoliver/ACROBAT)](https://github.com/tylerjackoliver/ACROBAT/issues)
-[![MIT License][license-shield]][license-url]
+![License](https://img.shields.io/github/license/tylerjackoliver/ACROBAT)
 
 
 <!-- PROJECT LOGO -->
