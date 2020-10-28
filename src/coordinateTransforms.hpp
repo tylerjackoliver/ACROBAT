@@ -7,6 +7,7 @@
 #include "bmeField.hpp"
 #include "emeField.hpp"
 #include "Point.hpp"
+#include "Params.hpp"
 #include <stdexcept>
 extern "C"
 {
@@ -27,7 +28,7 @@ void getSpinAxisDirection(double &a, double &d, double &epoch)
         SpiceBoolean found;
         SpiceDouble RA, DEC, et, w, lambda;
         et = epoch;
-        ConstSpiceChar name[] = PARAMS::TARGET;
+        ConstSpiceChar name[] = PARAMS::TARGET.c_str();
 
         // Call the conversion routine
         bods2c_c(name, &code, &found);
