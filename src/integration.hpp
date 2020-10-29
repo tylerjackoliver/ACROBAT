@@ -188,10 +188,7 @@ void getSet(integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vecto
     auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011);
     
     // Statuses
-    unsigned long numAcrobatic = 0;
-    unsigned long numCrash = 0;
-    unsigned long numEscape = 0;
-    unsigned long numStable = 0;
+    std::vector<unsigned long> setStatistics(4);
 
     // Get the integration direction (+ve or -ve time?)
     int directionTime = sgn(field.getFinalTime() - field.getInitialTime());
@@ -202,92 +199,48 @@ void getSet(integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vecto
     #pragma omp for
     for (unsigned i = 0; i < field.getXExtent(); ++i)
     {
-        // Private copies of statuses
-        std::vector<Point<int>> privatePoints;
-        unsigned long localNumAcrobatic = 0;
-        unsigned long localNumCrash = 0;
-        unsigned long localNumEscape = 0;
-        unsigned long localNumStable = 0;
-
         for (unsigned j = 0; j < field.getYExtent(); ++j)
         {
             for (unsigned k = 0; k < field.getZExtent(); ++k)
             {
-                // Get an initial position
-                Point<double> tmp = field.getValue(i, j, k);
+                Point<double> currentPoint = field.getValue(indices[0], indices[1], indices[2]);
 
                 // Fill an initial condition vector
                 stateType x0, x;
-                for (unsigned idx = 0; idx < 6; ++i) x0[idx] = tmp[idx];
-                x = x0;
+                for (unsigned idx = 0; idx < 6; ++i) 
+                {
+                    x0[idx] = currentPoint[idx];
+                    x[idx] = currentPoint[idx];
+                }
 
                 // Initialise current time
                 double currentTime = field.getInitialTime();
-                double finalTime = field.getFinalTime();
-                double dt = 0.01 * direction; // Multiply by the direction of integration (sign)
+                double dt = 0.01 * currentTime;
 
-                // Step success?
-                boost::numeric::odeint::controlled_step_result result;
+                // Integration status
+                int status = 0;
 
-                while ( fabs(currentTime) < fabs(finalTime) )
+                while (status == 0) // While none of the stopping conditions have been verified
                 {
-                    // Try and make a step
-                    result = stepper.try_step(forceFunction, x, currentTime, dt);
+                    /* Make a step using the given solver & force function */
+                    make_step(stepper, forceFunction, x, currentTime, dt);
 
-                    // If within tolerance requirements
-                    if (result == boost::numeric::odeint::success)
+                    /* Call the integrator observer function */
+                    status = integrationController(x, x0, currentTime);
+                } 
+                // Increment the correct counter in the setStatistics vector (ordered s.t. indexes is status-1)
+                #pragma omp atomic
+                setStatistics[status-1]++;
+                // If weakly stable, append its indices to the points vector
+                if (status == 2)
+                {
+                    #pragma omp critical
                     {
-                        /* Call the integrator observer function */
-                        int status = integrationController(x, x0, currentTime);
-
-                        /* Check the return code - do most likely first */ // Switch-case?
-                        if (status == 0) continue;
-                        if (status == 1) // Crash
-                        {
-                            localNumCrash++;
-                            currentTime = 1.e6; // Force while-loop break
-                        }
-                        if (status == 2) // Escaped
-                        {
-                            localNumEscape++;
-                            currentTime = 1.e6;
-                        }
-                        if (status == 3) // Weakly stable - what we want!
-                        {
-                            localNumStable++;
-                            // Add indices to privatePoints
-                            Point<int> tmp;
-                            tmp[0] = i; tmp[1] = j; tmp[2] = k;
-                            privatePoints.push_back(tmp);
-                            currentTime = 1.e6;
-                        }
-                        if (status == 4) // Acrobatic
-                        {
-                            localNumAcrobatic++;
-                            currentTime = 1.e6;
-                        }
+                        points.inset(points.end(), currentPoint);
                     }
                 }
-
-            }
-        }
-    }
-    // Globalise all the local values and append everything to points for a clean exit
-    #pragma omp critical
-    {
-        numCrash += localNumCrash;
-        numEscape += localNumEscape;
-        numStable += localNumStable;
-        numAcrobatic += localNumAcrobatic;
-
-        points.insert(points.end(), privatePoints.begin(), privatePoints.end());
-    }
-    } // end of parallel section
-    std::cout << "For a stability index of stabNum, the statistics are as follows:" << std::endl;
-    std::cout << "\t Number of crashes:   " << numCrash << std::endl;
-    std::cout << "\t Number of escapes:   " << numEscapes << std::endl;
-    std::cout << "\t Number of stable:    " << numStable << std::endl;
-    std::cout << "\t Number of acrobatic: " << numAcrobatic << std::endl;
+            } // end of parallel section
+            printStatistics(stabNum, setStatistics);
 } // function
 
 /* @brief Obtains the capture set from a given set of indices corresponding to points in an EME2000 field.
@@ -304,11 +257,8 @@ void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vector
     boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
     auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011);
     
-    // Statuses
-    unsigned long numAcrobatic = 0;
-    unsigned long numCrash = 0;
-    unsigned long numEscape = 0;
-    unsigned long numStable = 0;
+    // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
+    std::vector<unsigned long> setStatistics(4);
 
     // Get the integration direction (+ve or -ve time?)
     int directionTime = sgn(field.getFinalTime() - field.getInitialTime());
@@ -319,86 +269,82 @@ void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vector
     #pragma omp for
     for (unsigned i = 0; i < domain.size(); ++i)
     {
-        // Private copies of statuses
-        std::vector<Point<int>> privatePoints;
-        unsigned long localNumAcrobatic = 0;
-        unsigned long localNumCrash = 0;
-        unsigned long localNumEscape = 0;
-        unsigned long localNumStable = 0;
-
         // Get an initial position
         Point<vectorType> indices = domain[i];
-        Point<double> tmp = field.getValue(indices[0], indices[1], indices[2]);
+        Point<double> currentPoint = field.getValue(indices[0], indices[1], indices[2]);
 
         // Fill an initial condition vector
         stateType x0, x;
-        for (unsigned idx = 0; idx < 6; ++i) x0[idx] = tmp[idx];
-        x = x0;
+        for (unsigned idx = 0; idx < 6; ++i) 
+        {
+            x0[idx] = currentPoint[idx];
+            x[idx] = currentPoint[idx];
+        }
 
         // Initialise current time
         double currentTime = field.getInitialTime();
-        double finalTime = field.getFinalTime();
-        double dt = 0.01 * direction; // Multiply by the direction of integration (sign)
+        double dt = 0.01 * currentTime * directionTime;
 
-        // Step success?
-        boost::numeric::odeint::controlled_step_result result;
+        // Integration status
+        int status = 0;
 
-        while ( fabs(currentTime) < fabs(finalTime) )
+        while (status == 0) // While none of the stopping conditions have been verified
         {
-            // Try and make a step
-            result = stepper.try_step(forceFunction, x, currentTime, dt);
+            /* Make a step using the given solver & force function */
+            make_step(stepper, forceFunction, x, currentTime, dt);
 
-            // If within tolerance requirements
-            if (result == boost::numeric::odeint::success)
+            /* Call the integrator observer function */
+            status = integrationController(x, x0, currentTime);
+        } 
+        // Increment the correct counter in the setStatistics vector (ordered s.t. indexes is status-1)
+        #pragma omp atomic
+        setStatistics[status-1]++;
+        // If weakly stable, append its indices to the points vector
+        if (status == 2)
+        {
+            #pragma omp critical
             {
-                /* Call the integrator observer function */
-                int status = integrationController(x, x0, currentTime);
-
-                /* Check the return code - do most likely first */ // Switch-case?
-                if (status == 0) continue;
-                if (status == 1) // Crash
-                {
-                    localNumCrash++;
-                    currentTime = 1.e6; // Force while-loop break
-                }
-                if (status == 2) // Escaped
-                {
-                    localNumEscape++;
-                    currentTime = 1.e6;
-                }
-                if (status == 3) // Weakly stable - what we want!
-                {
-                    localNumStable++;
-                    // Add indices to privatePoints
-                    Point<int> tmp;
-                    tmp[0] = i; tmp[1] = j; tmp[2] = k;
-                    privatePoints.push_back(tmp);
-                    currentTime = 1.e6;
-                }
-                if (status == 4) // Acrobatic
-                {
-                    localNumAcrobatic++;
-                    currentTime = 1.e6;
-                }
+                points.inset(points.end(), currentPoint);
             }
         }
     }
-    // Globalise all the local values and append everything to points for a clean exit
-    #pragma omp critical
-    {
-        numCrash += localNumCrash;
-        numEscape += localNumEscape;
-        numStable += localNumStable;
-        numAcrobatic += localNumAcrobatic;
-
-        points.insert(points.end(), privatePoints.begin(), privatePoints.end());
-    }
     } // end of parallel section
-    std::cout << "For a stability index of stabNum, the statistics are as follows:" << std::endl;
-    std::cout << "\t Number of crashes:   " << numCrash << std::endl;
-    std::cout << "\t Number of escapes:   " << numEscapes << std::endl;
-    std::cout << "\t Number of stable:    " << numStable << std::endl;
-    std::cout << "\t Number of acrobatic: " << numAcrobatic << std::endl;
+    printStatistics(stabNum, setStatistics);
 } // function
+
+/* @brief Performs a step using a given boost stepper; returns the current time and the new state if successful
+ * @param[in] stepper Boost::odeint::numeric object corresponding to a controlled stepper
+ * @param[inout] currentTime On input, it contains the time of integration at the start of step. On exit, it contains the new time (i.e. after one step)
+ * @param[inout] x On input, it contains the state of the particle at the previous timestep. On exit, it contains the new state of the particle (i.e. after one step)
+ * @param[inout] dt On input, it contains a guess for the time-step to be taken. On exit, it contains the actual time-step taken.
+ * @param[in] f The force function to integrate.
+ */
+template <typename stepperType, typename timeType, typename stateType, typename function>
+void make_step(stepperType& stepper, stateType &x, timeType& currentTime, timeType& dt, function& f
+{
+    boost::numeric::odeint::controlled_step_result result = boost::numeric::odeint::fail;
+    
+    /* We only want this to return back to the calling function when the step was successful.
+       Therefore, keep retrying this until the stepper returns a value that was within tolerance.
+    */
+    while(result == boost::numeric::odeint::fail)
+    {
+        result = stepper.try_step(f, x, currentTime, dt);
+    }
+}
+
+/* @brief Prints the statistics for a given ballistic set computation
+   @param[in] stabNum The number of the sability index for the current computation
+   @param[in] setStatistics std::vector<> containing the statistics defined as in the set determination routines.
+*/
+template <typename integerType, typename vectorType>
+void printStatistics(integerType stabNum, std::vector<vectorType>& setStatistics)
+{
+    std::cout << "For a stability index of " stabNum << "the statistics are as follows:" << std::endl;
+    std::cout << "\t Number of crashes:   " << setStatistics[0] << std::endl;
+    std::cout << "\t Number of escapes:   " << setStatistics[1] << std::endl;
+    std::cout << "\t Number of stable:    " << setStatistics[2] << std::endl;
+    std::cout << "\t Number of acrobatic: " << setStatistics[3] << std::endl;
+}
 
 #endif
