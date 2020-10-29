@@ -268,7 +268,6 @@ void getSet(integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vecto
                         }
                     }
                 }
-
             }
         }
     }
@@ -321,6 +320,14 @@ void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vector
     {
         // Private copies of statuses
         std::vector<Point<int>> privatePoints;
+        std::unordered_map<std::string, unsigned long long> setStatistics;
+
+        // Populate map
+        setStatistics["a"] = 0;  // acrobatic
+        setStatistics["c"] = 0;  // crash
+        setStatistics["e"] = 0;  // escape
+        setStatistics["s"] = 0;  // stable for one more revolution
+
         unsigned long localNumAcrobatic = 0;
         unsigned long localNumCrash = 0;
         unsigned long localNumEscape = 0;
@@ -345,41 +352,37 @@ void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vector
 
         while ( fabs(currentTime) < fabs(finalTime) )
         {
-            // Try and make a step
-            result = stepper.try_step(forceFunction, x, currentTime, dt);
+            /* Make a step using the given solver & force function */
+            make_step(stepper, forceFunction, x, currentTime, dt);
 
-            // If within tolerance requirements
-            if (result == boost::numeric::odeint::success)
+            /* Call the integrator observer function */
+            int status = integrationController(x, x0, currentTime);
+
+            /* Check the return code - do most likely first */ // Switch-case?
+            if (status == 0) continue;
+            if (status == 1) // Crash
             {
-                /* Call the integrator observer function */
-                int status = integrationController(x, x0, currentTime);
-
-                /* Check the return code - do most likely first */ // Switch-case?
-                if (status == 0) continue;
-                if (status == 1) // Crash
-                {
-                    localNumCrash++;
-                    currentTime = 1.e6; // Force while-loop break
-                }
-                if (status == 2) // Escaped
-                {
-                    localNumEscape++;
-                    currentTime = 1.e6;
-                }
-                if (status == 3) // Weakly stable - what we want!
-                {
-                    localNumStable++;
-                    // Add indices to privatePoints
-                    Point<int> tmp;
-                    tmp[0] = i; tmp[1] = j; tmp[2] = k;
-                    privatePoints.push_back(tmp);
-                    currentTime = 1.e6;
-                }
-                if (status == 4) // Acrobatic
-                {
-                    localNumAcrobatic++;
-                    currentTime = 1.e6;
-                }
+                localNumCrash++;
+                currentTime = 1.e6; // Force while-loop break
+            }
+            if (status == 2) // Escaped
+            {
+                localNumEscape++;
+                currentTime = 1.e6;
+            }
+            if (status == 3) // Weakly stable - what we want!
+            {
+                localNumStable++;
+                // Add indices to privatePoints
+                Point<int> tmp;
+                tmp[0] = i; tmp[1] = j; tmp[2] = k;
+                privatePoints.push_back(tmp);
+                currentTime = 1.e6;
+            }
+            if (status == 4) // Acrobatic
+            {
+                localNumAcrobatic++;
+                currentTime = 1.e6;
             }
         }
     }
@@ -400,5 +403,26 @@ void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vector
     std::cout << "\t Number of stable:    " << numStable << std::endl;
     std::cout << "\t Number of acrobatic: " << numAcrobatic << std::endl;
 } // function
+
+/* @brief Performs a step using a given boost stepper; returns the current time and the new state if successful
+ * @param[in] stepper Boost::odeint::numeric object corresponding to a controlled stepper
+ * @param[inout] currentTime On input, it contains the time of integration at the start of step. On exit, it contains the new time (i.e. after one step)
+ * @param[inout] x On input, it contains the state of the particle at the previous timestep. On exit, it contains the new state of the particle (i.e. after one step)
+ * @param[inout] dt On input, it contains a guess for the time-step to be taken. On exit, it contains the actual time-step taken.
+ * @param[in] f The force function to integrate.
+ */
+template <typename stepperType, typename timeType, typename stateType, typename function>
+void make_step(stepperType& stepper, stateType &x, timeType& currentTime, timeType& dt, function& f
+{
+    boost::numeric::odeint::controlled_step_result result = boost::numeric::odeint::fail;
+    
+    /* We only want this to return back to the calling function when the step was successful.
+       Therefore, keep retrying this until the stepper returns a value that was within tolerance.
+    */
+    while(result == boost::numeric::odeint::fail)
+    {
+        result = stepper.try_step(f, x, currentTime, dt);
+    }
+}
 
 #endif
