@@ -69,19 +69,23 @@ namespace ACROBAT
     };
 };
 
-
 /* @brief Obtains the stabNumber-revolution stable set for a given EME2000 field. Note than stabNumber entries in the map are returned.
  * @param[in] stabNumber The number of revolutions a particle should complete in order to be classed as stable.
  * @param[out] std::unordered_map The keys are the number of rotations, and the values are a std::vector<> containing the points comprising the set.
  */
-template<typename Type>
-void emeField<Type>::getStableSet(unsigned int stabNumber, std::unordered_map<int, std::vector<Point<Type>>>& out);
+template<typename integerType, typename vectorType>
+void emeField<Type>::getStableSet(integerType stabNumber, std::unordered_map<int, std::vector<Point<vectorType>>>& out);
 {
+    std::vector<Point<vectorType>> points;
+    // Get the set defined solely from the initial domain (i.e. 1-stable)
+    getSet(1, this, points);
+    out[1] = points;
 
-    for (unsigned revs = 1; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
+    for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
     {
-        std::vector<Point<Type>> points;
-        getSet(revs, this, points);
+        // Clear points from the previous run
+        points.clear();
+        getSetFromPoints(revs, this, points);
         out[revs] = points;
     }
 }
