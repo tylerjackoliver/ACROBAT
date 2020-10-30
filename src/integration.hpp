@@ -182,11 +182,6 @@ int integrationController(Eigen::Vector<Type, 6> &x, Eigen::Vector<Type, 6> &x0,
 template <typename integerType, typename fieldType, typename vectorType>
 void getSet(integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
 {
-    // Initialise integrator
-    typedef Eigen::Vector<double, 6> stateType;
-    boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-    auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011);
-    
     // Statuses
     std::vector<unsigned long> setStatistics(4);
 
@@ -203,34 +198,16 @@ void getSet(integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vecto
         {
             for (unsigned k = 0; k < field.getZExtent(); ++k)
             {
+                // Get current point
                 Point<double> currentPoint = field.getValue(indices[0], indices[1], indices[2]);
 
-                // Fill an initial condition vector
-                stateType x0, x;
-                for (unsigned idx = 0; idx < 6; ++i) 
-                {
-                    x0[idx] = currentPoint[idx];
-                    x[idx] = currentPoint[idx];
-                }
+                // Get the status of this points behaviour
+                int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
 
-                // Initialise current time
-                double currentTime = field.getInitialTime();
-                double dt = 0.01 * currentTime;
-
-                // Integration status
-                int status = 0;
-
-                while (status == 0) // While none of the stopping conditions have been verified
-                {
-                    /* Make a step using the given solver & force function */
-                    make_step(stepper, forceFunction, x, currentTime, dt);
-
-                    /* Call the integrator observer function */
-                    status = integrationController(x, x0, currentTime);
-                } 
                 // Increment the correct counter in the setStatistics vector (ordered s.t. indexes is status-1)
                 #pragma omp atomic
                 setStatistics[status-1]++;
+
                 // If weakly stable, append its indices to the points vector
                 if (status == 2)
                 {
@@ -239,8 +216,11 @@ void getSet(integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vecto
                         points.inset(points.end(), currentPoint);
                     }
                 }
-            } // end of parallel section
-            printStatistics(stabNum, setStatistics);
+            }
+        }
+    }
+    } // parallel
+    printStatistics(stabNum, setStatistics);
 } // function
 
 /* @brief Obtains the capture set from a given set of indices corresponding to points in an EME2000 field.
@@ -251,12 +231,7 @@ void getSet(integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vecto
 */ 
 template <typename integerType, typename fieldType, typename vectorType>
 void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vectorType>> &domain, const ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
-{
-    // Initialise integrator
-    typedef Eigen::Vector<double, 6> stateType;
-    boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-    auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011);
-    
+{    
     // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
     std::vector<unsigned long> setStatistics(4);
 
@@ -273,32 +248,13 @@ void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vector
         Point<vectorType> indices = domain[i];
         Point<double> currentPoint = field.getValue(indices[0], indices[1], indices[2]);
 
-        // Fill an initial condition vector
-        stateType x0, x;
-        for (unsigned idx = 0; idx < 6; ++i) 
-        {
-            x0[idx] = currentPoint[idx];
-            x[idx] = currentPoint[idx];
-        }
-
-        // Initialise current time
-        double currentTime = field.getInitialTime();
-        double dt = 0.01 * currentTime * directionTime;
-
-        // Integration status
-        int status = 0;
-
-        while (status == 0) // While none of the stopping conditions have been verified
-        {
-            /* Make a step using the given solver & force function */
-            make_step(stepper, forceFunction, x, currentTime, dt);
-
-            /* Call the integrator observer function */
-            status = integrationController(x, x0, currentTime);
-        } 
-        // Increment the correct counter in the setStatistics vector (ordered s.t. indexes is status-1)
+        // Get the status of this points behaviour
+        int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
+        
+        // Increment the correct counter in the setStatistics vector (ordered s.t. index is status-1)
         #pragma omp atomic
         setStatistics[status-1]++;
+
         // If weakly stable, append its indices to the points vector
         if (status == 2)
         {
@@ -345,6 +301,46 @@ void printStatistics(integerType stabNum, std::vector<vectorType>& setStatistics
     std::cout << "\t Number of escapes:   " << setStatistics[1] << std::endl;
     std::cout << "\t Number of stable:    " << setStatistics[2] << std::endl;
     std::cout << "\t Number of acrobatic: " << setStatistics[3] << std::endl;
+}
+
+/* @brief Computes whether a given point is acrobatic, weakly stable, crashes, or escapes.
+*  @param[in] point The initial conditions (in a Point<> structure) to be tested
+*  @param[in] initTime The initial time for the integration of the trajectory
+*  @param[in] direction The direction for the timespan of the integration (+1/-1)
+*  @returns Status code corresponding to the behaviour of the trajectory
+*/
+template <typename pointType, typename doubleType, typename integerType>
+int getStatus(Point<PointType>& point, doubleType& initTime, integerType& direction)
+{
+    // Initialise the stepper to be used
+    typedef Eigen::Vector<double, 6> stateType;
+    boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
+    auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011);
+
+    // Fill an initial condition vector
+    stateType x0, x;
+    for (unsigned idx = 0; idx < 6; ++i) 
+    {
+        x0[idx] = point[idx];
+        x[idx] = point[idx];
+    }
+
+    // Initialise current time
+    double currentTime = initTime;
+    double dt = 0.01 * currentTime * direction;
+
+    // Integration status
+    int status = 0;
+
+    while (status == 0) // While none of the stopping conditions have been verified
+    {
+        /* Make a step using the given solver & force function */
+        make_step(stepper, forceFunction, x, currentTime, dt);
+
+        /* Call the integrator observer function */
+        status = integrationController(x, x0, currentTime);
+    }
+    return status; // Return status when it doesn't correspond to 'keep going'
 }
 
 #endif
