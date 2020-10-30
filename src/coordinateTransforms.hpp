@@ -14,32 +14,57 @@ extern "C"
     #include <SpiceUsr.h>
 }
 
-/* @brief Obtains the right ascension $\alpha$ and declination $\delta$ for the PARAMS::TARGET body at a given epoch.
-*  @param[out] a The right ascension
-*  @param[out] d The declination
-*  @param[in] epoch The epoch of the RA and DEC pair.
+/* @brief Obtains the rotation matrix for transforming from the BME frame to the EME frame at a given epoch
+*  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
+*  @param[out] rot The rotation matrix to transform from the BME to the EME frame (6x6)
 */
-void getSpinAxisDirection(double &a, double &d, double &epoch)
+template <typename matrixType>
+void getBMEtoEMERotationMatrix(double &epoch, Eigen::Matrix<MatrixType,6,6> &rot)
 {
     // Convert target string to integer ID
-    extern "C"
+    SpiceDouble rotationMatrix[6][6];
+
+    // Construct the name of the reference frame
+    std::string refFrame = "IAU_"+PARAMS::TARGET;
+    std::string desFrame = "J2000";
+
+    // Call the rotation matrix generator
+    sxform_c(refFrame.c_str(), desFrame.c_str(), epoch, rotationMatrix);
+
+    // Copy the rotation matrix into the output vector
+    for (unsigned i = 0; i < 6; ++i)
     {
-        SpiceInt code;
-        SpiceBoolean found;
-        SpiceDouble RA, DEC, et, w, lambda;
-        et = epoch;
-        ConstSpiceChar name[] = PARAMS::TARGET.c_str();
+        for (unsigned j = 0; j < 6; ++j)
+        {
+            rot(i,j) = rotationMatrix[i][j];
+        }
+    }
+}
 
-        // Call the conversion routine
-        bods2c_c(name, &code, &found);
+/* @brief Obtains the rotation matrix for transforming from the EME frame to the BME frame at a given epoch
+*  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
+*  @param[out] rot The rotation matrix to transform from the EME to the BME frame (6x6)
+*/
+template <typename matrixType>
+void getEMEtoBMERotationMatrix(double &epoch, Eigen::Matrix<MatrixType,6,6> &rot)
+{
+    // Convert target string to integer ID
+    SpiceDouble rotationMatrix[6][6];
 
-        // Check if it was found or not
-        if (!found) throw std::invalid_argument("Bad TARGET name string in getSpinAxisDirection.");
+    // Construct the name of the reference frame
+    std::string desFrame = "IAU_"+PARAMS::TARGET;
+    std::string refFrame = "J2000";
 
-        // Now compute RA and DEC for the given identifier
-        bodeul_(&code, &et, &RA, &DEC, &w, &lambda);
-        a = RA;
-        d = DEC;
+    // Call the rotation matrix generator
+    sxform_c(refFrame.c_str(), desFrame.c_str(), epoch, rotationMatrix);
+
+    // Copy the rotation matrix into the output vector
+    for (unsigned i = 0; i < 6; ++i)
+    {
+        for (unsigned j = 0; j < 6; ++j)
+        {
+            rot(i,j) = rotationMatrix[i][j];
+        }
     }
 }
 
@@ -50,24 +75,10 @@ void getSpinAxisDirection(double &a, double &d, double &epoch)
 template <typename Type>
 void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
 {
-    // Get right ascension and declination values at epoch of the bmeField
-    double alpha, delta;
-
-    // Compute the direction of the spin axis
-    getSpinAxisDirection(&alpha, &delta, PARAMS::EPOCH)
-
-    // Construct the transformation matrix
-    double sina = std::sin(alpha);
-    double sind = std::sin(delta);
-    double cosa = std::cos(alpha);
-    double cosd = std::cos(delta);
-
-    Eigen::Matrix3d<Type> Qbe;
+    Eigen::Matrix<Type, 6, 6> Qbe;
 
     // Create the transformation matrix
-    Qbe(0,0) = -sina; Qbe(0,1) = -cosa * sind; Qbe(0,2) = cosa * cosd;
-    Qbe(1,0) = cosa ; Qbe(1,1) = -sina * sind; Qbe(1,2) = cosd * sina;
-    Qbe(2,0) = 0.0  ; Qbe(2,1) = cosd        ; Qbe(2,2) = sind;
+    getBMEtoEMERotationMatrix(PARAMS::EPOCH, Qbe);
 
     // Apply Qbe to every state in bmeField
     #pragma omp parallel for shared(Qbe)
@@ -78,20 +89,17 @@ void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<
             for (unsigned int k = 0; k < bmeField.getZExtent(); ++k)
             {
                 // Set up input vector
-                Eigen::Vector3d<Type> xb;
-                Eigen::Vector3d<Type> xe;
+                Eigen::Matrix<Type, 6, 1> xb, xe;
                 Point<Type> temp = bmeField.getValue(i, j, k);
-                xb(0) = temp(0);
-                xb(1) = temp(1);
-                xb(2) = temp(2);
+                
+                // Assign
+                for(unsigned idx = 0; idx < 6; ++idx) xb(i) = temp[i];
 
                 // Compute
                 xe = Qbe * xb;
 
                 // Swap back
-                temp(0) = xe(0);
-                temp(1) = xe(1);
-                temp(2) = xe(2);
+                for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xe(i);
 
                 // Assign
                 emeField.setValue(i, j, k, &temp);
@@ -105,26 +113,14 @@ void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<
    @param[out] bmeField: bmeField to store the conversion in.
 */
 template <typename Type>
-void EMEtoBME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
+void EMEtoBME(ACROBAT::emeField<Point<Type>> &emeField, ACROBAT::bmeField<Point<Type>> &bmeField)
 {
-    // Get right ascension and declination values at epoch of the bmeField
-    double alpha, delta;
-    getSpinAxisDirection(&alpha, &delta, PARAMS::EPOCH)
+     Eigen::Matrix<Type, 6, 6> Qeb;
 
-    // Construct the transformation matrix
-    double sina = std::sin(alpha);
-    double sind = std::sin(delta);
-    double cosa = std::cos(alpha);
-    double cosd = std::cos(delta);
-
-    Eigen::Matrix3d<double> Qbe;
-
-    Qbe(0,0) = -sina;        Qbe(0,1) = cosa;         Qbe(0,2) = 0.0;
-    Qbe(1,0) = -cosa * sind; Qbe(1,1) = -sina * sind; Qbe(1,2) = cosd;
-    Qbe(2,0) = cosa * cosd;  Qbe(2,1) = cosd * sina;  Qbe(2,2) = sind;
+    // Create the transformation matrix
+    getEMEtoBMERotationMatrix(PARAMS::EPOCH, Qeb);
 
     // Apply Qbe to every state in bmeField
-
     #pragma omp parallel for shared(Qbe)
     for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
     {
@@ -133,23 +129,20 @@ void EMEtoBME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<
             for (unsigned int k = 0; k < bmeField.getZExtent(); ++k)
             {
                 // Set up input vector
-                Eigen::Vector3d<double> xb;
-                Eigen::Vector3d<double> xe;
+                Eigen::Matrix<Type, 6, 1> xb, xe;
                 Point<Type> temp = emeField.getValue(i, j, k);
-                xe(0) = temp(0);
-                xe(1) = temp(1);
-                xe(2) = temp(2);
+                
+                // Assign
+                for(unsigned idx = 0; idx < 6; ++idx) xe(i) = temp[i];
 
                 // Compute
                 xb = Qbe * xe;
 
                 // Swap back
-                temp(0) = xb(0);
-                temp(1) = xb(1);
-                temp(2) = xb(2);
+                for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xb(i);
 
                 // Assign
-                bmeField.setValue(i, j, k, &temp);
+                emeField.setValue(i, j, k, &temp);
             }
         }
     }
