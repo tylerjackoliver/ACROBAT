@@ -19,7 +19,7 @@ extern "C"
 *  @param[out] rot The rotation matrix to transform from the BME to the EME frame (6x6)
 */
 template <typename matrixType>
-void getBMEtoEMERotationMatrix(double &epoch, Eigen::Matrix<MatrixType,6,6> &rot)
+void getBMEtoEMERotationMatrix(double &epoch, Eigen::Matrix<matrixType,6,6> &rot)
 {
     // Convert target string to integer ID
     SpiceDouble rotationMatrix[6][6];
@@ -46,7 +46,7 @@ void getBMEtoEMERotationMatrix(double &epoch, Eigen::Matrix<MatrixType,6,6> &rot
 *  @param[out] rot The rotation matrix to transform from the EME to the BME frame (6x6)
 */
 template <typename matrixType>
-void getEMEtoBMERotationMatrix(double &epoch, Eigen::Matrix<MatrixType,6,6> &rot)
+void getEMEtoBMERotationMatrix(double &epoch, Eigen::Matrix<matrixType,6,6> &rot)
 {
     // Convert target string to integer ID
     SpiceDouble rotationMatrix[6][6];
