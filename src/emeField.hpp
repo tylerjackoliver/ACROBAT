@@ -16,18 +16,18 @@ extern "C"
 namespace ACROBAT
 {
     template <class Type>
-    class emeField : public field3D<Type>
+    class emeField : public field2D<Type>
     {
         public:
-            emeField(int nx, int ny, int nz) : field3D<Type>(nx, ny, nz)
+            emeField(int nx, int ny) : field2D<Type>(nx, ny)
             {};
 
-            /* @brief Initialises the elements in the field using an OEField.
-               @params[in] ACROBAT::oeField containing the orbital elements defining the domain
+            /* @brief Initialises the elements in the field using a BME field.
+               @params[in] ACROBAT::bmeField containing the points defining the domain
             */
             void initialiseField(ACROBAT::oeField &input)
             {
-                OEstoEME(input, this);
+                BMEtoEME(input, this);
             }
 
             /* @brief Returns the final time for the trajectory integration
