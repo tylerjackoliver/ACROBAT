@@ -3,19 +3,18 @@
 
 #include <ostream>
 #include <stdexcept>
+#include <vector>
 
 template <typename Type>
 struct Point
 {
-    std::vector<Type> state;
-
     struct pointProxy
     {
         Point &a;
         int idx;
         
         pointProxy(Point& a, int idx) : a(a), idx(idx) {}
-        int& operator=(int x)
+        Type& operator=(Type x)
         {
             a.state[idx] = x; return a.state[idx];
         };
@@ -130,6 +129,7 @@ struct Point
     {
         
     }
+    std::vector<Type> state;
 };
 
 template <typename Type>
