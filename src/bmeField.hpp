@@ -50,7 +50,7 @@ namespace ACROBAT
 extern "C" void OEsToState(ACROBAT::OEs &OE, Point<double> &stateOut)
 {
     // Convert to SpiceDouble for SPICE library
-    ConstSpiceDouble elts[8] = {OE.rp, OE.ecc, OE.inc, OE.longtd, OE.omega, OE.M, OE.epoch, PARAMS::GM};
+    ConstSpiceDouble elts[8] = {OE.rp, OE.ecc, OE.inc, OE.longtd, OE.omega, OE.M, OE.epoch, PARAMS::targetGM};
     SpiceDouble et = OE.epoch;
     SpiceDouble state[6];
 

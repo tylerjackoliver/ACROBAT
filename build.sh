@@ -5,6 +5,6 @@ cmake ..
 make
 )
 (
-cd ../bin
+cd bin/
 ./ACROBAT
 )

@@ -6,7 +6,7 @@ set (CMAKE_CXX_COMPILER icpc)
 
 # Find required C++ libraries
 
-find_package(OpenMP REQUIRED)
+#find_package(OpenMP REQUIRED)
 
 # Add source files
 
@@ -16,10 +16,11 @@ add_executable(ACROBAT
 
 # Set flags
 
-target_compile_options(ACROBAT PRIVATE -qopenmp -ax=AVX2 -Wall -O2 -mkl)
+target_compile_options(ACROBAT PRIVATE -qopenmp -ax=AVX2 -Wall -O2 -mkl -std=c++11)
 
 # Add linkers
 target_include_directories(ACROBAT PRIVATE ${CMAKE_BINARY_DIR}/../include/)
 
 target_link_libraries(ACROBAT PRIVATE ${CMAKE_BINARY_DIR}/../lib/cspice.a)
-target_link_libraries(ACROBAT PRIVATE ${OpenMP_CXX_FLAGS})
+target_link_libraries(ACROBAT PRIVATE -qopenmp)
+#target_link_libraries(ACROBAT PRIVATE ${OpenMP_CXX_FLAGS})
