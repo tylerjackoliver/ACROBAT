@@ -9,10 +9,23 @@ struct Point
 {
     std::vector<Type> state;
 
+    struct pointProxy
+    {
+        Point &a;
+        int idx;
+        
+        pointProxy(Point& a, int idx) : a(a), idx(idx) {}
+        int& operator=(int x)
+        {
+            a.state[idx] = x; return a.state[idx];
+        };
+    };
+
+    pointProxy operator[](int index){return pointProxy(*this, index);}
+
     // Class constructors
     Point() : state(6)
     {
-        for (unsigned i = 0; i < state.size(); ++i) state[i] = 0.0;
     };
 
     Point(Type x_, Type y_, Type z_) : state(6)
@@ -100,14 +113,22 @@ struct Point
         this->state = in;
     }
 
-    Type& operator[](int a)
+    template <typename inType>
+    Type& operator[](const inType& a)
+    {
+        return this->state[a];
+    }
+    
+    template <typename inType>
+    Type operator[](const inType& a) const
     {
         return this->state[a];
     }
 
-    const Type& operator[](int a) const
+    template <typename inType>
+    void operator=(const inType in)
     {
-        return this->state[a];
+        
     }
 };
 
