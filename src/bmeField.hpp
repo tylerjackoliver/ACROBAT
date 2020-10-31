@@ -58,6 +58,6 @@ extern "C" void OEsToState(ACROBAT::OEs &OE, Point<double> &stateOut)
     conics_c(elts, et, state);
     
     // Reassign
-    for (unsigned i = 0; i < 5; ++i) stateOut[i] = state[i];
+    for (unsigned i = 0; i < 6; ++i) stateOut[i] = state[i];
 };
 #endif
