@@ -89,7 +89,7 @@ namespace ACROBAT
                         temp.ecc = PARAMS::ECC;
                         temp.inc = PARAMS::INC;
                         temp.longtd = PARAMS::LONGTD;
-                        temp.M = PARAMS::M;
+                        temp.M = 0.0;                   // All trajectories start at the periapsis of their orbit
                         temp.epoch = PARAMS::EPOCH;
 
                         this->setValue(temp, i, j);

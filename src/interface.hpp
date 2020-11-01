@@ -58,8 +58,6 @@ void initialiseParams()
     /* Get GM for the HOST and TARGET planets */
     bodvrd_c(PARAMS::TARGET.c_str(), "GM", 1, &itemsReturned, &PARAMS::targetGM); // (body, value, max items returned, actual items returned, where to store)
     bodvrd_c(PARAMS::HOST.c_str(), "GM", 1, &itemsReturned, &PARAMS::hostGM);
-    PARAMS::targetGM = tempTargetGM;
-    PARAMS::hostGM = tempHostGM;
 
     /* Get the radii for the TARGET planet */
     bodvrd_c(PARAMS::TARGET.c_str(), "RADII", 3, &itemsReturned, targetRadii);
@@ -90,6 +88,7 @@ void initialiseParams()
 
     /* Now, we can get the Mean anomaly of the TARGET around the HOST using the orbital elements of TARGET about HOST
       and the given computational epoch */
+    std::cout << PARAMS::hostGM << std::endl;
     oscelt_c(positionVector, PARAMS::EPOCH, PARAMS::hostGM, oes);
     PARAMS::M = oes[5];
 }

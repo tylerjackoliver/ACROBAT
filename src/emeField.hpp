@@ -58,7 +58,7 @@ namespace ACROBAT
             /* @brief Sets the initial time for the trajectory integration
                @param[in] initialTime The initial time for the trajectory integration
             */
-            void setinitialTime(const double initialTime)
+            void setInitialTime(const double initialTime)
             {
                 this->_initialTime = initialTime;
             }
@@ -68,18 +68,18 @@ namespace ACROBAT
             * @param[out] std::unordered_map The keys are the number of rotations, and the values are a std::vector<> containing the points comprising the set.
             */
             template <typename integerType>
-            void getStableSet(const integerType, std::unordered_map<int, std::vector<Type>>&)
+            void getStableSet(const integerType stabNumber, std::unordered_map<int, std::vector<Type>>& out)
             {
                 std::vector<Type> points;
                 // Get the set defined solely from the initial domain (i.e. 1-stable)
-                getSet(1, this, points);
+                getSet(1, *this, points);
                 out[1] = points;
 
                 for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
                 {
                     // Clear points from the previous run
                     points.clear();
-                    getSetFromPoints(revs, this, points);
+                    getSetFromPoints(revs, *this, points);
                     out[revs] = points;
                 }
             }
@@ -188,6 +188,25 @@ namespace ACROBAT
         }
     }
 
+    /* @brief Returns the sign of a given numeric input
+       @params[in] Numeric type for which the sign is desired, passed by value
+       @returns An integer giving the sign of the expression ( {1, 0, -1} )
+    */
+    template <typename numericType>
+    int sgn(numericType val)
+    {
+        return (val > 0) - (val < 0);
+    }
+
+    /* @brief Returns the sign of a given numeric input
+       @params[in] Numeric type for which the sign is desired, passed by reference
+       @returns An integer giving the sign of the expression ( {1, 0, -1} )
+    */
+    template <typename numericType>
+    int sgn(numericType& val)
+    {
+        return (val > 0) - (val < 0);
+    }
 
     template <typename matrixType>
     void getEMEtoBMERotationMatrix(double &epoch, Eigen::Matrix<matrixType,6,6> &rot)
@@ -279,7 +298,7 @@ namespace ACROBAT
     }
 
     template <typename integerType, typename fieldType, typename vectorType>
-    void getSet(const integerType stabNum, const ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
+    void getSet(const integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
     {
         // Statuses
         std::vector<unsigned long> setStatistics(4);
@@ -294,7 +313,7 @@ namespace ACROBAT
             for (unsigned j = 0; j < field.getYExtent(); ++j)
             {
                 // Get current point
-                Point<double> currentPoint = field.getValue(indices[0], indices[1]);
+                Point<double> currentPoint = field.getValue(i, j);
 
                 // Get the status of this points behaviour
                 int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
@@ -382,7 +401,7 @@ namespace ACROBAT
         // Initialise the stepper to be used
         typedef Eigen::Matrix<double, 6, 1> stateType;
         boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011);
+        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011); // Wrong!
 
         // Fill an initial condition vector
         stateType x0, x;
