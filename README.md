@@ -67,7 +67,7 @@ Specifically, the function `bods2c_c` ([here](https://naif.jpl.nasa.gov/pub/naif
 
 The dependencies given above are required prior to build. The program is currently built and tested with the Intel C++ compiler for better compiler-directed vectorisation and optimization support. GNU compilers have been tested to work, but are not officially supported.
 
-Any compiler used must support the C++11 standard. At the moment, the program itself is not fully compliant with the Standard but will make use of C++11 intrinsics once a preliminary version is implemented.
+Any compiler used must support the C++14 standard. At the moment, the program itself is not fully compliant with the Standard but will make use of C++14 intrinsics once a preliminary version is implemented.
 
 ### Building
 
