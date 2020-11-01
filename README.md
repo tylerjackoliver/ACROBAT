@@ -80,6 +80,24 @@ git clone https://github.com/tylerjackoliver/ACROBAT.git
 sh build.sh
 ```
 
+### Running
+The user should edit the parameters for their desired configuration as given in `Params.hpp`. Six unique parameters are required to instantiate all of the derived parameters for the problem:
+
+* `HOST`, a `std::string` object containing either the NAIF designation (e.g. `"399"`) or common identifier (`"Earth"`) for the HOST body, i.e. the major body in the ER3BP
+* `TARGET`, a `std::string` object containing either the NAIF designation (e.g. `"499"`) or common identifier (`"Mars"`) for the TARGET body, i.e. the minor body in the ER3BP.
+* `ECC`, a double-precision number containing the desired eccentricity of the capture orbits, [0.0, 1.0).
+* `INC`, a double-precision number containing the inclination of the desired capture orbits, [0, 2 * pi).
+* `LONGTD`, a double-precision number containing the longitude of the desired capture orbits, [0, 2 * pi).
+* `EPOCH`, a double-precision number containing the epoch of the investigation, in ephemeris seconds past J2000. For abstract dates, the str2et_c() function may be used in the Parameters file.
+
+The following derived parameters are then calculated from the values given above using the SPICE system. Note that this relies on the use of planetary constant kernels (PCKs), lightsecond kernels (LSKs) and planetary ephemerides (SPKs). An instruction on including these kernels may be found in the spice/ subdirectory.
+
+* `R`, the mean planetary radius of the `TARGET`.
+* `RS`, the sphere of influence of the `TARGET` about the `HOST`, assuming a perfectly spherical SOI.
+* `targetGM`, the gravitational parameter of the  `TARGET`.
+* `hostGM`, the graviational parameter of the `HOST`.
+* `M`, the mean anomaly of the `TARGET` about the HOST at the given `EPOCH`.
+
 <!-- CONTACT -->
 ## Contact
 
