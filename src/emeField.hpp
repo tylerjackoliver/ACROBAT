@@ -26,9 +26,9 @@ namespace ACROBAT
             /* @brief Initialises the elements in the field using a BME field.
                @params[in] ACROBAT::bmeField containing the points defining the domain
             */
-            void initialiseField(ACROBAT::oeField &input)
+            void initialiseField(ACROBAT::bmeField<Type> &input)
             {
-                BMEtoEME(input, this);
+                BMEtoEME(input, *this);
             }
 
             /* @brief Returns the final time for the trajectory integration
@@ -67,44 +67,58 @@ namespace ACROBAT
             * @param[in] stabNumber The number of revolutions a particle should complete in order to be classed as stable.
             * @param[out] std::unordered_map The keys are the number of rotations, and the values are a std::vector<> containing the points comprising the set.
             */
-            template <typename integerType, typename vectorType>
-            void getStableSet(const integerType, std::unordered_map<int, std::vector<Point<vectorType>>>);
+            template <typename integerType>
+            void getStableSet(const integerType, std::unordered_map<int, std::vector<Type>>&)
+            {
+                std::vector<Type> points;
+                // Get the set defined solely from the initial domain (i.e. 1-stable)
+                getSet(1, this, points);
+                out[1] = points;
+
+                for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
+                {
+                    // Clear points from the previous run
+                    points.clear();
+                    getSetFromPoints(revs, this, points);
+                    out[revs] = points;
+                }
+            }
                     
             /* @brief Obtains the rotation matrix for transforming from the BME frame to the EME frame at a given epoch
             *  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
             *  @param[out] rot The rotation matrix to transform from the BME to the EME frame (6x6)
             */
-            template <typename matrixType>
-            void getBMEtoEMERotationMatrix(const double&, Eigen::Matrix<matrixType, 6, 6>&);
+            // template <typename matrixType>
+            // void getBMEtoEMERotationMatrix(const double&, Eigen::Matrix<matrixType, 6, 6>&);
 
             /* @brief Obtains the rotation matrix for transforming from the EME frame to the BME frame at a given epoch
             *  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
             *  @param[out] rot The rotation matrix to transform from the EME to the BME frame (6x6)
             */
-            template <typename matrixType>
-            void getEMEtoBMERotationMatrix(double&, Eigen::Matrix<matrixType, 6, 6>&);
+            // template <typename matrixType>
+            // void getEMEtoBMERotationMatrix(double&, Eigen::Matrix<matrixType, 6, 6>&);
 
             /*  @brief Converts a BME@Epoch field to an EME2000 field.
                 @param[in] bmeField: bmeField to convert
                 @param[out] emeField: emeField to store the conversion in.
             */
-            template <typename pointType>
-            void BMEtoEME(const ACROBAT::bmeField<Point<Type>>, ACROBAT::emeField<Point<Type>>&);
+            // template <typename pointType>
+            // void BMEtoEME(const ACROBAT::bmeField<Point<Type>>&, ACROBAT::emeField<Point<Type>>&);
 
-            /* @brief Converts an EME2000 field to a BME@Epoch field
+            /*  @brief Converts an EME2000 field to a BME@Epoch field
                 @param[in] emeField: emeField to convert
                 @param[out] bmeField: bmeField to store the conversion in.
             */
-            template <typename pointType>
-            void EMEtoBME(const ACROBAT::emeField<Point<pointType>>&, ACROBAT::bmeField<Point<pointType>>&);
+            // template <typename pointType>
+            // void EMEtoBME(const ACROBAT::emeField<Point<pointType>>&, ACROBAT::bmeField<Point<pointType>>&);
         
             /*  @brief Obtains the points in the set for a given stability index stabNum across the whole EMEJ2000 field.
                 @param[in] stabNum The stability index
                 @param[in] field EME2000 Field containing the domain to integrate
                 @param[out] points std::vector<> of Points containing the indices of points in the set
             */
-            template <typename integerType, typename fieldType, typename vectorType>
-            void getSet(const integerType&, const ACROBAT::emeField<fieldType>&, std::vector<Point<vectorType>>&);
+            // template <typename integerType, typename fieldType, typename vectorType>
+            // void getSet(const integerType&, const ACROBAT::emeField<fieldType>&, std::vector<Point<vectorType>>&);
         
             /*  @brief Obtains the capture set from a given set of indices corresponding to points in an EME2000 field.
                 @param[in] stabNum The stability index the set is sought for
@@ -112,9 +126,9 @@ namespace ACROBAT
                 @param[in] field The domain for which the points in domain correspond to
                 @param[out] points A vector containing the indices of the corresponding capture set
             */ 
-           template <typename integerType, typename fieldType, typename vectorType>
-           void getSetFromPoints(const integerType&, const std::vector<Point<vectorType>>&, 
-                                 const ACROBAT::emeField<fieldType>&, std::vector<Point<vectorType>>&);
+        //    template <typename integerType, typename fieldType, typename vectorType>
+        //    void getSetFromPoints(const integerType&, const std::vector<Point<vectorType>>&, 
+        //                          const ACROBAT::emeField<fieldType>&, std::vector<Point<vectorType>>&);
                 
             /*  @brief Performs a step using a given boost stepper; returns the current time and the new state if successful
             *   @param[in] stepper Boost::odeint::numeric object corresponding to a controlled stepper
@@ -123,15 +137,8 @@ namespace ACROBAT
             *   @param[inout] dt On input, it contains a guess for the time-step to be taken. On exit, it contains the actual time-step taken.
             *   @param[in] f The force function to integrate.
             */
-           template <typename stepperType, typename timeType, typename stateType, typename function>
-           void make_step(stepperType&, stateType&, timeType&, timeType&, function&);
-
-            /* @brief Prints the statistics for a given ballistic set computation
-               @param[in] stabNum The number of the sability index for the current computation
-               @param[in] setStatistics std::vector<> containing the statistics defined as in the set determination routines.
-            */
-           template <typename integerType, typename vectorType>
-           void printStatistics(const integerType stabNum, std::vector<vectorType>&) const;
+        //    template <typename stepperType, typename timeType, typename stateType, typename function>
+        //    void make_step(stepperType&, stateType&, timeType&, timeType&, function&);
 
             /* @brief Computes whether a given point is acrobatic, weakly stable, crashes, or escapes.
             *  @param[in] point The initial conditions (in a Point<> structure) to be tested
@@ -139,30 +146,24 @@ namespace ACROBAT
             *  @param[in] direction The direction for the timespan of the integration (+1/-1)
             *  @returns Status code corresponding to the behaviour of the trajectory
             */
-            template <typename pointType, typename doubleType, typename integerType>
-            int getStatus(Point<PointType>&, const doubleType&, const integerType&)
+            // template <typename pointType, typename doubleType, typename integerType>
+            // int getStatus(Point<pointType>&, const doubleType&, const integerType&);
+            
+            /* @brief Prints the statistics for a given ballistic set computation
+               @param[in] stabNum The number of the sability index for the current computation
+               @param[in] setStatistics std::vector<> containing the statistics defined as in the set determination routines.
+            */
+        //    template <typename integerType, typename vectorType>
+        //    void printStatistics(const integerType stabNum, std::vector<vectorType>&) const;
 
         private:
             double _finalTime;      // Final time for the trajectory integration
             double _initialTime;    // Initial time for the trajectory integration
     };
 
-    template<class classType, typename integerType, typename vectorType>
-    void emeField<classType>::getStableSet(const integerType stabNumber, std::unordered_map<int, std::vector<Point<vectorType>>>& out);
-    {
-        std::vector<Point<vectorType>> points;
-        // Get the set defined solely from the initial domain (i.e. 1-stable)
-        getSet(1, this, points);
-        out[1] = points;
-
-        for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
-        {
-            // Clear points from the previous run
-            points.clear();
-            getSetFromPoints(revs, this, points);
-            out[revs] = points;
-        }
-    }
+    // template<class classType, typename integerType, typename vectorType>
+    // void emeField<classType>::getStableSet(const integerType stabNumber, std::unordered_map<int, std::vector<Point<vectorType>>>& out);
+    
 
     template <typename matrixType>
     void getBMEtoEMERotationMatrix(const double &epoch, Eigen::Matrix<matrixType,6,6> &rot)
@@ -212,7 +213,7 @@ namespace ACROBAT
     }
 
     template <typename Type>
-    void BMEtoEME(const ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
+    void BMEtoEME(ACROBAT::bmeField<Point<Type>> &bmeField, ACROBAT::emeField<Point<Type>> &emeField)
     {
         Eigen::Matrix<Type, 6, 6> Qbe;
 
@@ -225,24 +226,21 @@ namespace ACROBAT
         {
             for (unsigned int j = 0; j < bmeField.getYExtent(); ++j)
             {
-                for (unsigned int k = 0; k < bmeField.getZExtent(); ++k)
-                {
-                    // Set up input vector
-                    Eigen::Matrix<Type, 6, 1> xb, xe;
-                    Point<Type> temp = bmeField.getValue(i, j, k);
-                    
-                    // Assign
-                    for(unsigned idx = 0; idx < 6; ++idx) xb(i) = temp[i];
+                // Set up input vector
+                Eigen::Matrix<Type, 6, 1> xb, xe;
+                Point<Type> temp = bmeField.getValue(i, j);
+                
+                // Assign
+                for(unsigned idx = 0; idx < 6; ++idx) xb(i) = temp[i];
 
-                    // Compute
-                    xe = Qbe * xb;
+                // Compute
+                xe = Qbe * xb;
 
-                    // Swap back
-                    for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xe(i);
+                // Swap back
+                for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xe(i);
 
-                    // Assign
-                    emeField.setValue(i, j, k, &temp);
-                }
+                // Assign
+                emeField.setValue(temp, i, j);
             }
         }
     }
@@ -261,24 +259,21 @@ namespace ACROBAT
         {
             for (unsigned int j = 0; j < bmeField.getYExtent(); ++j)
             {
-                for (unsigned int k = 0; k < bmeField.getZExtent(); ++k)
-                {
-                    // Set up input vector
-                    Eigen::Matrix<Type, 6, 1> xb, xe;
-                    Point<Type> temp = emeField.getValue(i, j, k);
-                    
-                    // Assign
-                    for(unsigned idx = 0; idx < 6; ++idx) xe(i) = temp[i];
+                // Set up input vector
+                Eigen::Matrix<Type, 6, 1> xb, xe;
+                Point<Type> temp = emeField.getValue(i, j);
+                
+                // Assign
+                for(unsigned idx = 0; idx < 6; ++idx) xe(i) = temp[i];
 
-                    // Compute
-                    xb = Qbe * xe;
+                // Compute
+                xb = Qbe * xe;
 
-                    // Swap back
-                    for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xb(i);
+                // Swap back
+                for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xb(i);
 
-                    // Assign
-                    emeField.setValue(i, j, k, &temp);
-                }
+                // Assign
+                emeField.setValue(temp, i, j);
             }
         }
     }
@@ -298,25 +293,22 @@ namespace ACROBAT
         {
             for (unsigned j = 0; j < field.getYExtent(); ++j)
             {
-                for (unsigned k = 0; k < field.getZExtent(); ++k)
+                // Get current point
+                Point<double> currentPoint = field.getValue(indices[0], indices[1]);
+
+                // Get the status of this points behaviour
+                int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
+
+                // Increment the correct counter in the setStatistics vector (ordered s.t. indexes is status-1)
+                #pragma omp atomic
+                setStatistics[status-1]++;
+
+                // If weakly stable, append its indices to the points vector
+                if (status == 2)
                 {
-                    // Get current point
-                    Point<double> currentPoint = field.getValue(indices[0], indices[1], indices[2]);
-
-                    // Get the status of this points behaviour
-                    int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
-
-                    // Increment the correct counter in the setStatistics vector (ordered s.t. indexes is status-1)
-                    #pragma omp atomic
-                    setStatistics[status-1]++;
-
-                    // If weakly stable, append its indices to the points vector
-                    if (status == 2)
+                    #pragma omp critical
                     {
-                        #pragma omp critical
-                        {
-                            points.inset(points.end(), currentPoint);
-                        }
+                        points.insert(points.end(), currentPoint);
                     }
                 }
             }
@@ -339,7 +331,7 @@ namespace ACROBAT
         {
             // Get an initial position
             Point<vectorType> indices = domain[i];
-            Point<double> currentPoint = field.getValue(indices[0], indices[1], indices[2]);
+            Point<double> currentPoint = field.getValue(indices[0], indices[1]);
 
             // Get the status of this points behaviour
             int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
@@ -353,11 +345,10 @@ namespace ACROBAT
             {
                 #pragma omp critical
                 {
-                    points.inset(points.end(), currentPoint);
+                    points.insert(points.end(), currentPoint);
                 }
             }
         }
-        } // end of parallel section
         printStatistics(stabNum, setStatistics);
     } // function
 
@@ -375,8 +366,8 @@ namespace ACROBAT
         }
     }
 
-    template <typename integerType, typename vectorType>
-    void printStatistics(const integerType stabNum, const std::vector<vectorType>& setStatistics) const
+    template <class Type, typename integerType, typename vectorType>
+    void printStatistics(const integerType stabNum, const std::vector<vectorType>& setStatistics)
     {
         std::cout << "For a stability index of " stabNum << "the statistics are as follows:" << std::endl;
         std::cout << "\t Number of crashes:   " << setStatistics[0] << std::endl;
@@ -386,7 +377,7 @@ namespace ACROBAT
     }
 
     template <typename pointType, typename doubleType, typename integerType>
-    int getStatus(Point<PointType>& point, const doubleType& initTime, const integerType& direction)
+    int getStatus(Point<pointType>& point, const doubleType& initTime, const integerType& direction)
     {
         // Initialise the stepper to be used
         typedef Eigen::Matrix<double, 6, 1> stateType;

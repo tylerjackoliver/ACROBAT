@@ -15,10 +15,10 @@ extern "C"
 namespace ACROBAT
 {
     template <class Type>
-    class bmeField : public field2D<Point<Type>>
+    class bmeField : public field2D<Type>
     {
         public:
-            bmeField(int nx, int ny) : field2D<Point<Type>>(nx, ny)
+            bmeField(int nx, int ny) : field2D<Type>(nx, ny)
             {};
 
             void initialiseField(ACROBAT::oeField &input)
@@ -33,7 +33,7 @@ namespace ACROBAT
                     for (unsigned int j = 0; j < this->getYExtent(); ++j)
                     {
                         ACROBAT::OEs tempOE = input.getValue(i, j);
-                        Point<Type> tempPoint;
+                        Type tempPoint;
                         OEsToState(tempOE, tempPoint);
                         this->setValue(tempPoint, i, j);
                     }
@@ -47,7 +47,8 @@ namespace ACROBAT
    @param[in] OE An ACROBAT::OEs structure corresponding to the elements to convert.
    @param[out] stateOut Point<double> containing the position, velocity vector.
 */
-extern "C" void OEsToState(ACROBAT::OEs &OE, Point<double> &stateOut)
+template <typename pointType>
+void OEsToState(ACROBAT::OEs &OE, Point<pointType> &stateOut)
 {
     // Convert to SpiceDouble for SPICE library
     ConstSpiceDouble elts[8] = {OE.rp, OE.ecc, OE.inc, OE.longtd, OE.omega, OE.M, OE.epoch, PARAMS::targetGM};

@@ -12,6 +12,9 @@ namespace PARAMS
     double hostGM = 1.e13; // E.g. Sun
     double R = 6367.; // Planetary radius, in km
     double RS = 10000.; // Sphere of influence
+
+    std::string TARGET="Earth";
+    std::string HOST = "Sun";
 }
 
 #endif
