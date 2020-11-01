@@ -123,12 +123,7 @@ struct Point
     {
         return this->state[a];
     }
-
-    template <typename inType>
-    void operator=(const inType in)
-    {
-        
-    }
+    
     std::vector<Type> state;
 };
 
