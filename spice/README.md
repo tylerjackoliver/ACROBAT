@@ -16,11 +16,14 @@ The metakernel structure should look like this:
 ```
    KPL/MK
    \begindata
+
+   PATH_VALUES ('../path/from/binary/folder/to/kernels')
+   PATH_SYMBOLS ('FP')
  
-   KERNELS_TO_LOAD = ( 'leapseconds_file.tls',
-                       'planetary_ephemeris_file.bsp',
-                       'planetary_masses_file.tpc',
-                       'planetary_pck_file.tpc')
+   KERNELS_TO_LOAD = ( '$FP/leapseconds_file.tls',
+                       '$FP/planetary_ephemeris_file.bsp',
+                       '$FP/planetary_masses_file.tpc',
+                       '$FP/planetary_pck_file.tpc')
  
    \begintext
 ```

@@ -1,6 +1,14 @@
 #ifndef __INTERFACE_H__
 #define __INTERFACE_H__
 
+#include "Params.hpp"
+#include <cmath>
+
+extern "C"
+{
+    #include "SpiceUsr.h"
+}
+
 struct opts
 {
     // Domain settings
@@ -21,6 +29,71 @@ struct opts
 
 opts OPTIONS;
 
+
+/* @brief Computes derived problem parameters from the independent problem parameters given in Params.hpp
+   
+   The independent problem variables are the target and host planets, defined by std::strings of their IAU
+   or common identifier, the epoch of the problem, given in ephemeris seconds past J2000, and the eccentricity,
+   longitude and inclination of the target ballistic capture orbit.
+
+   The remaining variables - TARGET planetary radii, sphere of influence and graviational parameter - are derived
+   from the IAU common string via SPICE kernels. The HOST gravivational parameter is also derived using SPICE kernels.
+*/
+void initialiseParams()
+{
+    // Initialise temporary outputs
+    double hostRadii[3];
+    double avgHostRadii = 0.0;
+    double targetRadii[3];
+    double avgTargetRadii = 0.0;
+    int itemsReturned;
+    double positionVector[6];
+    double oes[8];
+    double lt; // Temp lighttime entry
+    double euclideanNorm = 0.0;
+
+    SpiceDouble tempTargetGM;
+    SpiceDouble tempHostGM;
+
+    /* Get GM for the HOST and TARGET planets */
+    bodvrd_c(PARAMS::TARGET.c_str(), "GM", 1, &itemsReturned, &PARAMS::targetGM); // (body, value, max items returned, actual items returned, where to store)
+    bodvrd_c(PARAMS::HOST.c_str(), "GM", 1, &itemsReturned, &PARAMS::hostGM);
+    PARAMS::targetGM = tempTargetGM;
+    PARAMS::hostGM = tempHostGM;
+
+    /* Get the radii for the TARGET planet */
+    bodvrd_c(PARAMS::TARGET.c_str(), "RADII", 3, &itemsReturned, targetRadii);
+
+    /* Compute average Radii from the given directions */
+    for (size_t idx = 0; idx < itemsReturned; ++idx)
+    {
+        avgTargetRadii += targetRadii[idx];
+    }
+    avgTargetRadii /= itemsReturned;
+    PARAMS::R = avgTargetRadii;
+
+    /* Compute the sphere of influence of the given planet - assumed to be a perfect sphere.
+       For this, we need the distance between the HOST and the TARGET. We'll therefore use SPKPOS_C
+       to get the position of the TARGET around the HOST (although the inverse would be perfecrtly
+       legitimate.) We can then compute the L2-norm of this vector to give the position, and then
+       compute the sphere of influence from that. */
+    spkezr_c(PARAMS::TARGET.c_str(), PARAMS::EPOCH, "J2000", "NONE", PARAMS::HOST.c_str(), positionVector, &lt);
+
+    for (size_t idx = 0; idx < 3; ++idx)
+    {
+        euclideanNorm += positionVector[idx] * positionVector[idx];
+    }
+    euclideanNorm = std::sqrt(euclideanNorm);
+    
+    // Finally, can compute the sphere of influence (R_SOI = (mTarg/mHost)^(2/5) * R_distance)
+    PARAMS::RS = std::pow(PARAMS::targetGM / PARAMS::hostGM, 2./5.) * euclideanNorm;
+
+    /* Now, we can get the Mean anomaly of the TARGET around the HOST using the orbital elements of TARGET about HOST
+      and the given computational epoch */
+    oscelt_c(positionVector, PARAMS::EPOCH, PARAMS::hostGM, oes);
+    PARAMS::M = oes[5];
+}
+
 void welcomeMessage()
 {
     std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
@@ -39,6 +112,11 @@ void welcomeMessage()
     std::cout << "Discretisations in X: " << OPTIONS.nX          << std::endl;
     std::cout << "Discretisations in Y: " << OPTIONS.nY          << std::endl;
     std::cout << "System mass parameter: " << OPTIONS.mu         << std::endl;
+
+    // Load the ephemeris files here
+    furnsh_c("../spice/metakernel.tm");
+    // Initialise parameters
+    initialiseParams();
 };
 
 #endif
