@@ -39,3 +39,8 @@ lib/
 
 # VSCode turds
 .vscode/
+
+# SPK kernels
+*.tpc
+*.bsp
+*.tls
