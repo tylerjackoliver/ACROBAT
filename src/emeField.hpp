@@ -231,13 +231,13 @@ namespace ACROBAT
                 Point<Type> temp = bmeField.getValue(i, j);
                 
                 // Assign
-                for(unsigned idx = 0; idx < 6; ++idx) xb(i) = temp[i];
+                for(unsigned idx = 0; idx < 6; ++idx) xb(idx) = temp[idx];
 
                 // Compute
                 xe = Qbe * xb;
 
                 // Swap back
-                for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xe(i);
+                for (unsigned idx = 0; idx < 6; ++idx) temp[idx] = xe(idx);
 
                 // Assign
                 emeField.setValue(temp, i, j);
