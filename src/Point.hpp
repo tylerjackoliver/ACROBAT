@@ -10,14 +10,15 @@ struct Point
 {
     struct pointProxy
     {
-        Point &a;
+        Point<Type> &a;
         int idx;
         
-        pointProxy(Point& a, int idx) : a(a), idx(idx) {}
+        pointProxy(Point<Type>& a, int idx) : a(a), idx(idx) {}
         Type& operator=(Type x)
         {
             a.state[idx] = x; return a.state[idx];
         };
+
     };
 
     pointProxy operator[](int index){return pointProxy(*this, index);}
@@ -84,6 +85,7 @@ struct Point
     Point& operator/=(multType a)
     {
         for (unsigned i = 0; i < this->state.size(); ++i) this->state[i] /= a;
+        return *this;
     }
 
     Point operator+(Point const &a) const
