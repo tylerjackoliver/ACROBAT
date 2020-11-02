@@ -1,6 +1,8 @@
 #ifndef __LAGUERRE_CONWAY_H__
 #define __LAGUERRE_CONWAY_H__
 
+#include <cmath>
+
 /* @brief Implements the Laguerre-Conway method for solving Kepler's equation. Convergence is generally good within 5 iterations.
    @param[in] E0: Initial guess for the eccentric anomaly
    @param[out] Ef: Final iterate; solution of Kepler's equation.
@@ -11,11 +13,11 @@
    @param[in]: fp: Function that returns the error in first derivative of Kepler's equation
    @param[in]: fpp: Function that returns the error in second derivative of Kepler's equation
 */
-template <typename Type, typename Function>
-void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function f, Function fp, Function fpp)
+template <typename Type, typename Function, typename derivFunction>
+void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function f, derivFunction fp, derivFunction fpp)
 {
     const int n = 5;        // Tuning parameter - 5 for now, as per paper
-    Type tolerance = 100.   // Stopping tolerance
+    Type tolerance = 100.;  // Stopping tolerance
     Type xi = E0;
     unsigned num_iters = 0;
 
@@ -27,20 +29,21 @@ void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function 
         Type dDeriv = fpp(xi, ecc);
 
         // Compute numerator, square root
-        Type numerator = - n * f(E0);
-        Type root = std::sqrt( fabs((n-1) * (n-1) * (fp * fp) - n * (n-1) * fval * dDeriv) );
+        Type numerator = - n * fval;
+        Type root = std::sqrt( fabs((n-1) * (n-1) * (deriv * deriv) - n * (n-1) * fval * dDeriv) );
 
         // Denominator is such that absolute value is maximised
-        Type denominator = std::max( fabs(fp + root), fabs(fp - root) );
+        Type denominator = std::max( fabs(deriv + root), fabs(deriv - root) );
+
+        // std::cout << "numerator " << numerator << std::endl;
+        // std::cout << "denominator " << denominator << std::endl;
 
         // Compute update to iterate
         Type delta_n1 = numerator / denominator;
-        xi += delta_n1;
-
+        xi += delta_n1; 
         tolerance = delta_n1; // Change in latest iterate
         num_iters++;
     };
-    //
     Ef = xi;
 }
 
@@ -50,8 +53,8 @@ void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function 
    @param[in] M The value of Mean anomaly at the current step
    @returns The error in Kepler's equation.
 */
-template <typename Type>
-Type keplersEquation(const Type E, const Type ecc, const Type M)
+// template <typename Type>
+double keplersEquation(const double E, const double ecc, const double M)
 {
     return E - ecc * std::sin(E) - M;
 }
@@ -61,8 +64,8 @@ Type keplersEquation(const Type E, const Type ecc, const Type M)
    @param[in] ecc The value of eccentricity at the current step
    @returns The error in the first derivative of Kepler's equation.
 */
-template <typename Type>
-Type dMdE(const Type E, const Type ecc)
+// template <typename Type>
+double dMdE(const double E, const double ecc)
 {
     return 1 - ecc * std::cos(E);
 }
@@ -72,8 +75,8 @@ Type dMdE(const Type E, const Type ecc)
    @param[in] ecc The value of eccentricity at the current step.
    @returns The error in the second derivative of Kepler's equation.
  */
-template <typename Type>
-Type dMMdEE(const Type E, const Type ecc)
+// template <typename Type>
+double dMMdEE(const double E, const double ecc)
 {
     return ecc * std::sin(E);
 }
@@ -101,9 +104,10 @@ template <typename Type>
 Type eccentricToTrue(Type &E, Type &ecc)
 {
     double pi = 4.0 * atan(1.0);
-    Type root = sqrt::( (1-ecc) / (1+ecc) );
+    Type root = std::sqrt( (1-ecc) / (1+ecc) );
     Type inv = root * std::tan(E / 2.0);
-    return ( 2.0 * std::atan(inv) ) % 2. * pi;
+    Type returnValue = std::fmod( (2.0 * std::atan(inv)), (2. * pi) );
+    return returnValue;
 }
 
 /* Wrapper: Converts from Mean to True anomaly */
@@ -113,7 +117,7 @@ Type eccentricToTrue(Type &E, Type &ecc)
    @returns The true anomaly corresponding to the mean anomaly and eccentricity.
 */
 template <typename Type>
-Type meanToTrue(Type &M, Type &ecc, Type &f)
+void meanToTrue(Type &M, Type &ecc, Type &f)
 {
     double eps = 1.e-012;
     Type E =  meanToEccentric(M, ecc, eps);
