@@ -30,6 +30,8 @@ namespace PARAMS
     double RS = 0.0; // Sphere of influence
     /* Mean anomaly of TARGET around HOST */
     double M     = 0.0;
+    /* Maximum integration time for determining a trajectory to be acrobatic */
+    double maxT = 0.0;
 }
 
 #endif

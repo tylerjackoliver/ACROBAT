@@ -63,14 +63,54 @@ namespace ACROBAT
                 this->_initialTime = initialTime;
             }
 
+
+            template <typename integerType, typename fieldType, typename vectorType>
+            void getSetFromPoints(const integerType& stabNum, std::vector<Point<vectorType>> &domain, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
+            {    
+                // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
+                std::vector<unsigned long> setStatistics(4);
+
+                // Get the integration direction (+ve or -ve time?)
+                int directionTime = sgn(field.getFinalTime() - field.getInitialTime());
+
+                // Iterate through the conditions on the EME2000 field
+                #pragma omp parallel for shared(directionTime)
+                for (unsigned i = 0; i < domain.size(); ++i)
+                {
+                    // Get an initial position
+                    Point<vectorType> indices = domain[i];
+                    int idx1 = indices.state[0];
+                    int idx2 = indices.state[1];
+                    Point<double> currentPoint = field.getValue(idx1, idx2);
+
+                    // Get the status of this points behaviour
+                    int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
+                    
+                    // Increment the correct counter in the setStatistics vector (ordered s.t. index is status-1)
+                    #pragma omp atomic
+                    setStatistics[status-1]++;
+
+                    // If weakly stable, append its indices to the points vector
+                    if (status == 2)
+                    {
+                        #pragma omp critical
+                        {
+                            points.insert(points.end(), indices);
+                        }
+                    }
+                }
+                printStatistics(stabNum, setStatistics);
+            } // function
+
+
             /* @brief Obtains the stabNumber-revolution stable set for a given EME2000 field. Note than stabNumber entries in the map are returned.
             * @param[in] stabNumber The number of revolutions a particle should complete in order to be classed as stable.
             * @param[out] std::unordered_map The keys are the number of rotations, and the values are a std::vector<> containing the points comprising the set.
             */
-            template <typename integerType>
-            void getStableSet(const integerType stabNumber, std::unordered_map<int, std::vector<Type>>& out)
+            template <typename integerType, typename pointType>
+            void getStableSet(integerType stabNumber, std::unordered_map<int, std::vector<Point<pointType>>>& out)
             {
-                std::vector<Type> points;
+                std::vector<Point<pointType>> points;
                 // Get the set defined solely from the initial domain (i.e. 1-stable)
                 getSet(1, *this, points);
                 out[1] = points;
@@ -79,7 +119,7 @@ namespace ACROBAT
                 {
                     // Clear points from the previous run
                     points.clear();
-                    getSetFromPoints(revs, *this, points);
+                    getSetFromPoints(revs, out[revs-1], *this, points);
                     out[revs] = points;
                 }
             }
@@ -156,6 +196,8 @@ namespace ACROBAT
         //    template <typename integerType, typename vectorType>
         //    void printStatistics(const integerType stabNum, std::vector<vectorType>&) const;
 
+            void regulariseSystem();
+
         private:
             double _finalTime;      // Final time for the trajectory integration
             double _initialTime;    // Initial time for the trajectory integration
@@ -163,7 +205,16 @@ namespace ACROBAT
 
     // template<class classType, typename integerType, typename vectorType>
     // void emeField<classType>::getStableSet(const integerType stabNumber, std::unordered_map<int, std::vector<Point<vectorType>>>& out);
-    
+
+    template <typename integerType, typename vectorType>
+    void printStatistics(const integerType stabNum, const std::vector<vectorType>& setStatistics)
+    {
+        std::cout << "For a stability index of " << stabNum << "the statistics are as follows:" << std::endl;
+        std::cout << "\t Number of crashes:   " << setStatistics[0] << std::endl;
+        std::cout << "\t Number of escapes:   " << setStatistics[1] << std::endl;
+        std::cout << "\t Number of stable:    " << setStatistics[2] << std::endl;
+        std::cout << "\t Number of acrobatic: " << setStatistics[3] << std::endl;
+    }
 
     template <typename matrixType>
     void getBMEtoEMERotationMatrix(const double &epoch, Eigen::Matrix<matrixType,6,6> &rot)
@@ -181,10 +232,13 @@ namespace ACROBAT
         // Copy the rotation matrix into the output vector
         for (unsigned i = 0; i < 6; ++i)
         {
+            std::cout << "[";
             for (unsigned j = 0; j < 6; ++j)
             {
                 rot(i,j) = rotationMatrix[i][j];
+                std::cout << rotationMatrix[i][j] << ", ";
             }
+            std::cout << "]" << std::endl;
         }
     }
 
@@ -238,9 +292,10 @@ namespace ACROBAT
 
         // Create the transformation matrix
         getBMEtoEMERotationMatrix(PARAMS::EPOCH, Qbe);
+        std::cout << Qbe << std::endl;
 
         // Apply Qbe to every state in bmeField
-        #pragma omp parallel for shared(Qbe)
+        // #pragma omp parallel for shared(Qbe)
         for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
         {
             for (unsigned int j = 0; j < bmeField.getYExtent(); ++j)
@@ -304,17 +359,18 @@ namespace ACROBAT
         std::vector<unsigned long> setStatistics(4);
 
         // Get the integration direction (+ve or -ve time?)
-        int directionTime = sgn(field.getFinalTime() - field.getInitialTime());
+        int directionTime = 1;
+        unsigned prog = 0;
 
         // Iterate through the conditions on the EME2000 field
-        #pragma omp parallel for shared(directionTime, setStatistics, points)
+        // #pragma omp parallel for shared(directionTime, setStatistics, points)
         for (unsigned i = 0; i < field.getXExtent(); ++i)
         {
             for (unsigned j = 0; j < field.getYExtent(); ++j)
             {
                 // Get current point
                 Point<double> currentPoint = field.getValue(i, j);
-
+                
                 // Get the status of this points behaviour
                 int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
 
@@ -327,52 +383,22 @@ namespace ACROBAT
                 {
                     #pragma omp critical
                     {
-                        points.insert(points.end(), currentPoint);
+                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                        points.insert(points.end(), thisPoint);
                     }
                 }
+                prog++;
+                std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << std::endl;
             }
         }
         printStatistics(stabNum, setStatistics);
     } // function
 
-    template <typename integerType, typename fieldType, typename vectorType>
-    void getSetFromPoints(const integerType& stabNum, const std::vector<Point<vectorType>> &domain, const ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
-    {    
-        // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
-        std::vector<unsigned long> setStatistics(4);
-
-        // Get the integration direction (+ve or -ve time?)
-        int directionTime = sgn(field.getFinalTime() - field.getInitialTime());
-
-        // Iterate through the conditions on the EME2000 field
-        #pragma omp parallel for shared(directionTime)
-        for (unsigned i = 0; i < domain.size(); ++i)
-        {
-            // Get an initial position
-            Point<vectorType> indices = domain[i];
-            Point<double> currentPoint = field.getValue(indices[0], indices[1]);
-
-            // Get the status of this points behaviour
-            int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
-            
-            // Increment the correct counter in the setStatistics vector (ordered s.t. index is status-1)
-            #pragma omp atomic
-            setStatistics[status-1]++;
-
-            // If weakly stable, append its indices to the points vector
-            if (status == 2)
-            {
-                #pragma omp critical
-                {
-                    points.insert(points.end(), currentPoint);
-                }
-            }
-        }
-        printStatistics(stabNum, setStatistics);
-    } // function
-
-    template <typename stepperType, typename timeType, typename stateType, typename function>
-    void make_step(stepperType& stepper, stateType &x, timeType& currentTime, timeType& dt, function& f)
+    // template <typename stepperType, typename timeType, typename stateType>
+    // void make_step(stepperType& stepper, stateType &x, timeType& currentTime, timeType& dt)
+    template <typename stepperType>
+    // void make_step(stepperType& stepper, Eigen::Matrix<double, 6, 1>& x, double currentTime, double dt)
+    void make_step(stepperType& stepper, std::vector<double>& x, double& currentTime, double& dt)
     {
         boost::numeric::odeint::controlled_step_result result = boost::numeric::odeint::fail;
         
@@ -381,39 +407,41 @@ namespace ACROBAT
         */
         while(result == boost::numeric::odeint::fail)
         {
-            result = stepper.try_step(f, x, currentTime, dt);
+            result = stepper.try_step(forceFunction, x, currentTime, dt);
         }
-    }
-
-    template <class Type, typename integerType, typename vectorType>
-    void printStatistics(const integerType stabNum, const std::vector<vectorType>& setStatistics)
-    {
-        std::cout << "For a stability index of " stabNum << "the statistics are as follows:" << std::endl;
-        std::cout << "\t Number of crashes:   " << setStatistics[0] << std::endl;
-        std::cout << "\t Number of escapes:   " << setStatistics[1] << std::endl;
-        std::cout << "\t Number of stable:    " << setStatistics[2] << std::endl;
-        std::cout << "\t Number of acrobatic: " << setStatistics[3] << std::endl;
     }
 
     template <typename pointType, typename doubleType, typename integerType>
     int getStatus(Point<pointType>& point, const doubleType& initTime, const integerType& direction)
     {
         // Initialise the stepper to be used
-        typedef Eigen::Matrix<double, 6, 1> stateType;
+        // typedef Eigen::Matrix<double, 6, 1> stateType;
+        typedef std::vector<double> stateType;
         boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011); // Wrong!
+        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011, method); // Wrong!
 
-        // Fill an initial condition vector
-        stateType x0, x;
-        for (unsigned idx = 0; idx < 6; ++i) 
+        // Fill an initial condition vector and normalize on entry
+        stateType x0Dim(6), xDim(6), x0, x;
+        for (unsigned idx = 0; idx < 6; ++idx) 
         {
-            x0[idx] = point[idx];
-            x[idx] = point[idx];
+            x0Dim[idx] = point[idx];
+            xDim[idx] = point[idx];
         }
+
+        std::cout << "Got past the assignment phase." << std::endl;
+
+        // Normalise
+        getNonDimState(x0Dim, x0);
+        getNonDimState(xDim, x);
+
+        std::cout << "Got past the normalisation phase with the following vectors: " << std::endl;
+        std::cout << "( ";
+        for (size_t idx = 0; idx < x.size(); ++idx) std::cout << x0[idx] << ", ";
+        std::cout << std::endl;
 
         // Initialise current time
         double currentTime = initTime;
-        double dt = 0.01 * currentTime * direction;
+        double dt = 0.01 * direction;
 
         // Integration status
         int status = 0;
@@ -421,12 +449,28 @@ namespace ACROBAT
         while (status == 0) // While none of the stopping conditions have been verified
         {
             /* Make a step using the given solver & force function */
-            make_step(stepper, forceFunction, x, currentTime, dt);
+            make_step(stepper, x, currentTime, dt);
+                // void make_step(stepperType& stepper, stateType &x, timeType& currentTime, timeType& dt, function& f)
 
             /* Call the integrator observer function */
             status = integrationController(x, x0, currentTime);
         }
         return status; // Return status when it doesn't correspond to 'keep going'
+    }
+
+    void normaliseParameters()
+    {
+        PARAMS::hostGM /= PARAMS::targetGM;
+        PARAMS::RS /= PARAMS::R;
+        PARAMS::R = PARAMS::R;
+    }
+
+    /* @brief Normalises the system as per Luo et. al., 2014.
+    */
+    template<typename Type>
+    void emeField<Type>::regulariseSystem()
+    {
+        normaliseParameters();
     }
 }
 #endif
