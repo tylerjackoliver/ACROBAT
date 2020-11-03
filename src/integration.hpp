@@ -8,10 +8,118 @@
 #include <limits>
 #include <boost/numeric/odeint.hpp>
 #include <stdexcept>
+#include "laguerreConway.hpp"
+#include <cmath>
 
 extern "C"
 {
     #include <SpiceUsr.h>
+}
+
+/* @brief Computes and returns the dimensional time from the non-dimensional time.
+ * @param[in] nonDim Non-dimensional time to convert
+ * @returns The dimensional time corresponding to nonDim
+ */
+template <typename Type> 
+Type getDimensionalTime(Type &nonDim)
+{
+    return nonDim * std::sqrt( std::pow(PARAMS::R, 3) / PARAMS::targetGM );
+}
+
+/* @brief Computes and returns the the non-dimensional time from the dimensional time
+ * @param[in] dim Dimensional time to convert
+ * @returns The non-dimensional time corresponding to dim
+ */
+template <typename Type> 
+Type getNonDimensionalTime(Type &dim)
+{
+    return dim * std::sqrt( PARAMS::targetGM / std::pow(PARAMS::R, 3) );
+}
+
+/* @brief Computes the non-dimensional position relating to the dimensional position
+   @param[in] dim Dimensional position to convert
+   @param[out] nonDim Non-dimensional position corresponding to dim
+*/
+template <typename Type>
+void getNonDimPosition(Type& dim, Type& nonDim)
+{
+    nonDim = dim;
+    for (size_t idx = 0; idx < nonDim.size(); ++idx) nonDim[idx] = nonDim[idx] / PARAMS::R;
+}
+
+/* @brief Computes the dimensional position relating to the non-dimensional position
+   @param[in] nonDim Non-dimensional position to convert
+   @param[out] dim Dimensional position corresponding to dim
+*/
+template <typename Type>
+void getDimPosition(Type& nonDim, Type& dim)
+{
+    dim = nonDim;
+    for (size_t idx = 0; idx < dim.size(); ++idx) dim[idx] = dim[idx] * PARAMS::R;
+}
+
+/* @brief Computes the dimensional velocity corresponding to the non-dimensional velocity
+   @params[in] nonDim The non-dimensional velocity to convert.
+   @params[out] dim The dimensional velocity corresponding to nonDim
+*/
+template <typename Type>
+void getDimVelocity(Type& nonDim, Type& dim)
+{
+    dim = nonDim;
+    double coeff = std::sqrt(PARAMS::R / PARAMS::targetGM);
+    for (size_t idx = 0; idx < dim.size(); ++idx) dim[idx] = dim[idx] * std::sqrt(PARAMS::R / PARAMS::targetGM);
+}
+
+/* @brief Computes the non-dimensional velocity corresponding to the dimensional velocity
+   @params[in] dim The dimensional velocity to convert.
+   @params[out] nonDim The non-dimensional velocity corresponding to dim
+*/
+template <typename Type> 
+void getNonDimVelocity(Type& dim, Type& nonDim)
+{
+    nonDim = dim;
+    double coeff = std::sqrt(PARAMS::R / PARAMS::targetGM);
+    for (size_t idx = 0; idx < nonDim.size(); ++idx) nonDim[idx] = nonDim[idx] * coeff;
+}
+
+/* @brief Makes a given input state non-dimensional
+   @param[in] dim Dimensional state to non-dimensionalise
+   @param[out] nonDim Non-dimensional state corresponding to dim
+*/
+template <typename Type>
+void getNonDimState(std::vector<Type>& dim, std::vector<Type>& nonDim)
+{
+    std::vector<Type> pos = std::vector<Type>(dim.begin(), dim.begin() + 3);
+    std::vector<Type> vel = std::vector<Type>(dim.end()-3, dim.end());
+
+    std::vector<Type> nonDimPos;
+    std::vector<Type> nonDimVel;
+
+    getNonDimPosition(pos, nonDimPos);
+    getNonDimVelocity(vel, nonDimVel);
+
+    nonDim.insert(nonDim.begin(), nonDimPos.begin(), nonDimPos.end());
+    nonDim.insert(nonDim.end(), nonDimVel.begin(), nonDimVel.end());
+}
+
+/* @brief Makes a given input state dimensional
+   @param[in] nonDim Non-dimensional state to convert
+   @param[out] dim Dimensional state corresponding to nonDim
+*/
+template <typename Type>
+void getDimState(std::vector<Type>& nonDim, std::vector<Type>& dim)
+{
+    std::vector<Type> pos = std::vector<Type>(nonDim.begin(), nonDim.begin() + 3);
+    std::vector<Type> vel = std::vector<Type>(nonDim.end()-3, nonDim.end());
+
+    std::vector<Type> dimPos;
+    std::vector<Type> dimVel;
+
+    getDimPosition(pos, dimPos);
+    getDimVelocity(vel, dimVel);
+
+    dim.insert(dim.begin(), dimPos.begin(), dimPos.end());
+    dim.insert(dim.end(), dimVel.begin(), dimVel.end());
 }
 
 /* @brief Computes the direction vector to the Sun from the spacecraft.
@@ -21,22 +129,23 @@ extern "C"
 template <typename Type>
 void getSunVector(Eigen::Matrix<Type, 3, 1> &r, const Type t)
 {
-    Eigen::Matrix3<Type, 3> rotationVector;
+    Eigen::Matrix<Type, 3, 1> rotationVector;
     double trueAnomaly;
 
     // Get orbital elements of host about target in the EME2000 frame (actually the J2000 frame in SPICE!)
-    ACROBAT::OEs sunOEs = getOEs(t, PARAMS::host, PARAMS::target, PARAMS::targetGM);      // Need orientation of the Sun wrt planet we're seeking ballistic capture orbits for
-    ACROBAT::OEs planetOEs = getOEs(t, PARAMS::target, PARAMS::host, PARAMS::hostGM);   // Need a, e of planet we're constructing ballistic orbits for
+    ACROBAT::OEs sunOEs = getOEs(t, PARAMS::HOST, PARAMS::TARGET, PARAMS::hostGM);      // Need orientation of the Sun wrt planet we're seeking ballistic capture orbits for
+    ACROBAT::OEs planetOEs = getOEs(t, PARAMS::TARGET, PARAMS::HOST, PARAMS::hostGM);   // Need a, e of planet we're constructing ballistic orbits for
 
     // Get the true anomaly of the Sun about the target planet
-    meanToTrue(sunOEs.M, sunOEs.ecc, &trueAnomaly);
+    // std::cout << "M, ecc " << planetOEs.M << " " << planetOEs.ecc << std::endl;
+    meanToTrue(sunOEs.M, sunOEs.ecc, trueAnomaly);
 
     // Construct rotation vector
-    getRotationMatrix(&rotationVector, &sunOEs, &trueAnomaly);
+    getRotationMatrix(rotationVector, sunOEs, trueAnomaly);
 
     // Compute vector
-    double a = planetOEs.rp / (1. - planetOEs.ecc);
-    double scalar = a * (1 - planetOEs.e) / (1 + planetOEs.ecc * std::cos(trueAnomaly));
+    double a = planetOEs.rp / (PARAMS::R * (1. - planetOEs.ecc)); // PARAMS::R normalizes
+    double scalar = a * (1 - planetOEs.ecc) / (1 + planetOEs.ecc * std::cos(trueAnomaly));
 
     r = scalar * rotationVector;
 }
@@ -51,8 +160,6 @@ ACROBAT::OEs getOEs(double t, std::string body, std::string obs, double &gm)
 {
     ACROBAT::OEs ret;
 
-    std::string ref = "IAU_" + obs;     // Reference frame for the BME field is the IAU frame about the target
-    
     ConstSpiceChar abcorr[] = "NONE";
     
     SpiceDouble state[6];
@@ -60,7 +167,7 @@ ACROBAT::OEs getOEs(double t, std::string body, std::string obs, double &gm)
     SpiceDouble et = t;
     SpiceDouble lt = 0.0;
 
-    spkezr_c(body.c_str(), et, ref.c_str(), abcorr, obs.c_str(), state, &lt);
+    spkezr_c(body.c_str(), et, "J2000", abcorr, obs.c_str(), state, &lt);
     oscelt_c(state, et, gm, elts);
 
     // Copy elts into vector
@@ -91,36 +198,36 @@ void getRotationMatrix(Eigen::Matrix<Type, 3, 1> &rotationVector, ACROBAT::OEs &
 }
 
 /* @brief Compute the derivative vector of the current state for numerical integration routines.
-*  @param[in] x Eigen::Matrix<Type, 6> of the initial [r, v] vector for the particle
-*  @param[out] dx Eigen::Matrix<Type, 6> corresponding to the derivative of x
+*  @param[in] x std::vector<Type> of the initial [r, v] vector for the particle
+*  @param[out] dx std::vector<Type> corresponding to the derivative of x
 *  @param[in] t Current integration time-step
 */
-template <typename Type>
-void forceFunction(Eigen::Matrix<Type, 6, 1> &x, Eigen::Matrix<Type, 6, 1> &dx, const double t)
+void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const double t)
 {
     // First, the trivial derivatives
-    dx(0) = x(3);
-    dx(1) = x(4);
-    dx(2) = x(5);
+    for (size_t i = 0; i < 3; ++i) dx[0] = x[i+3];
 
     // Now the not-so-trivial
-    Eigen::Matrix<Type, 3, 1> sunVector, positionVector, velocityVector, solarTerm;
+    Eigen::Matrix<double, 3, 1> sunVector, positionVector, velocityVector, solarTerm;
 
-    positionVector(0) = x(0);
-    positionVector(1) = x(1);
-    positionVector(2) = x(2);
+    for (size_t i = 0; i < 3; ++i) positionVector(i) = x[i];
 
-    double currentTime = PARAMS::EPOCH + t; // t is measured in seconds
+    double dimensionalTime = getDimensionalTime(t);
+    double currentTime = PARAMS::EPOCH + dimensionalTime; // t is measured in seconds
 
-    getSunVector(&sunVector, currentTime);
-    posDifference = positionVector - sunVector;
+    getSunVector(sunVector, currentTime);
+    sunVector /= PARAMS::R;  // Normalise
+    Eigen::Matrix<double, 3, 1> posDifference = positionVector - sunVector;
 
-    solarTerm = PARAMS::hostGM * (sunVector / ( std::pow(sunVector.norm(), 3) ) + ( posDifference / ( std::pow(posDifference.norm(), 3) ) ));
-    velocityVector = -PARAMS::targetGM * positionVector / ( std::pow(positionVector.norm(), 3) ) - solarTerm;
+    // std::cout << sunVector << std::endl;
 
-    dx(3) = velocityVector(0);
-    dx(4) = velocityVector(1);
-    dx(5) = velocityVector(2);
+    double normalHostGM = PARAMS::hostGM / PARAMS::targetGM; // Normalise
+    double normalTargetGM = 1.0;
+
+    solarTerm = normalHostGM * (sunVector / ( std::pow(sunVector.norm(), 3) ) + ( posDifference / ( std::pow(posDifference.norm(), 3) ) ));
+    velocityVector = -normalTargetGM * positionVector / ( std::pow(positionVector.norm(), 3) ) - solarTerm;
+
+    for (size_t i = 0; i < 3; ++i) dx[i+3] = velocityVector(i);
 }
 
 /* @brief Custom integration observer function; returns various status integers depending on whether stopping conditions have been triggered.
@@ -137,36 +244,44 @@ void forceFunction(Eigen::Matrix<Type, 6, 1> &x, Eigen::Matrix<Type, 6, 1> &dx, 
     3: Trajectory is weakly stable (wacky geometrics)
     4: Trajectory is acrobatic (nothing happens!)
 */
-template <typename Type>
-int integrationController(Eigen::Matrix<Type, 6, 1> &x, Eigen::Matrix<Type, 6, 1> &x0, const double t)
+// template <typename Type>
+int integrationController(std::vector<double> &x, std::vector<double>& x0, const double t)
 {
     int flag = 0;
-    Eigen::Matrix<Type, 3, 1> r = x(Eigen::seq(0,2));
-    Eigen::Matrix<Type, 3, 1> r0 = x0(Eigen::seq(0,2));
-    Eigen::Matrix<Type, 3, 1> v = x(Eigen::seq(3,5));
-    Eigen::Matrix<Type, 3, 1> v0 = x0(Eigen::seq(3,5));
 
-    // First check for a crash
-    // Note: we have not yet regularised the dynamics, so for now we are checking that R < Rrad (not 1)
-    Type rMag = r.norm();
-    if (rMag <= PARAMS::R) return 1;    // Premature exit to prevent computing unnecessary branches
+    Eigen::Matrix<double, 3, 1> r, r0, v0, v;
+    for (size_t idx = 0; idx < 3; ++idx)
+    {
+        r(idx) = x[idx];
+        r0(idx) = x0[idx];
+        v(idx) = x[idx+3];
+        v0(idx) = x0[idx+3];
+    }
+
+    // First check for a crash - note regularised dynamics
+    double rMag = r.norm();
+    if (rMag <= 1) return 1;    // Premature exit to prevent computing unnecessary branches
 
     // Next, check for an escape
-    Type vMag = v.norm();
-    Type keplerEnergy = (vMag * vMag / 2. - 1./rMag);
-    if (rMag >= PARAMS::RS && H > 0) return 2;
+    double vMag = v.norm();
+    double keplerEnergy = (vMag * vMag / 2. - 1./rMag);
+    if (rMag >= PARAMS::RS/PARAMS::R && keplerEnergy > 0) return 2;
 
     // Now, check for weakly stable
-    Eigen::Matrix<Type, 3, 1> angMomentum0 = r0.cross(v0);
-    Type conditionOne = r.dot(angMomentum0.cross(v0));
-    Type conditionTwo = r.dot(r0);
-    Type conditionThree = v.dot(v0) * v0.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
+    Eigen::Matrix<double, 3, 1> angMomentum0 = r0.cross(v0);
+    double conditionOne = r.dot(angMomentum0.cross(v0));
+    double conditionTwo = r.dot(r0);
+    double conditionThree = v.dot(v0) * v0.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
 
-    if (conditionOne < std::numeric_limits<Type>::epsilon() * 1000 && conditionTwo > 0 && conditionThree > 0) return 3;
+    if (conditionOne < std::numeric_limits<double>::epsilon() * 1000 && conditionTwo > 0 && conditionThree > 0) return 3;
 
     // Lastly, check time
     double pi = 4.0 * std::atan(1.0);
-    if (t >= 8.0 * pi * std::pow(PARAMS::RS, 1.5) ) return 4;
+    double dimensionalTime = getDimensionalTime(t);
+    if (dimensionalTime >= PARAMS::maxT)  // maxT is defined in interface.hpp as 4 orbits about the Hill region for the given body
+    {
+        return 4;
+    }
 
     // If nothing else
     return 0;
