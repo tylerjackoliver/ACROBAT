@@ -66,8 +66,8 @@ template <typename Type>
 void getDimVelocity(Type& nonDim, Type& dim)
 {
     dim = nonDim;
-    double coeff = std::sqrt(PARAMS::R / PARAMS::targetGM);
-    for (size_t idx = 0; idx < dim.size(); ++idx) dim[idx] = dim[idx] * std::sqrt(PARAMS::R / PARAMS::targetGM);
+    double coeff = std::sqrt(PARAMS::targetGM / PARAMS::R);
+    for (size_t idx = 0; idx < dim.size(); ++idx) dim[idx] = dim[idx] * coeff;
 }
 
 /* @brief Computes the non-dimensional velocity corresponding to the dimensional velocity
@@ -149,6 +149,25 @@ void getSunVector(Eigen::Matrix<Type, 3, 1> &r, const Type t)
     r = scalar * rotationVector;
 }
 
+/* @brief Get the vector to the Sun from the orbital ephemerides
+   @param[in] t Dimensional time at which the vector is sought
+   @param[inout] r Normalised position vector between the TARGET and the HOST
+*/
+template <typename Type>
+void getSunVectorEphemeris(Eigen::Matrix<Type, 3, 1> &r, const Type t)
+{
+    ConstSpiceChar abcorr[] = "NONE";
+    
+    SpiceDouble state[3];
+    SpiceDouble et = t;
+    SpiceDouble lt = 0.0;
+
+    // Get state
+    spkpos_c(PARAMS::HOST.c_str(), et, "J2000", abcorr, PARAMS::TARGET.c_str(), state, &lt);
+
+    for (size_t idx = 0; idx < 3; ++idx) r(idx) = state[idx] / PARAMS::R; // Copy position into output vector, normalised
+}
+
 /* @brief C++ wrapper to the SPICE orbital element routines.
  * @param[in] t: Time (ephemeris seconds) at which the orbital elements are required.
  * @param[in] body: String identifying the body the orbital elements are sought for.
@@ -214,10 +233,8 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
     double dimensionalTime = getDimensionalTime(t);
     double currentTime = PARAMS::EPOCH + dimensionalTime; // t is measured in seconds
 
-    getSunVector(sunVector, currentTime); //  Comes out pre-normalised
+    getSunVectorEphemeris(sunVector, currentTime);
     Eigen::Matrix<double, 3, 1> posDifference = positionVector - sunVector;
-
-    // std::cout << sunVector << std::endl;
 
     double normalHostGM = PARAMS::hostGM / PARAMS::targetGM; // Normalise
     double normalTargetGM = 1.0;
@@ -265,6 +282,7 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
     double keplerEnergy = (vMag * vMag / 2. - 1./rMag);
     if (rMag >= PARAMS::RS/PARAMS::R && keplerEnergy > 0) 
     {
+        std::cout << "Here with R= " << r << " and v = " << v << std::endl;
         return 2;
     }
 
