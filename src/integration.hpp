@@ -137,7 +137,6 @@ void getSunVector(Eigen::Matrix<Type, 3, 1> &r, const Type t)
     ACROBAT::OEs planetOEs = getOEs(t, PARAMS::TARGET, PARAMS::HOST, PARAMS::hostGM);   // Need a, e of planet we're constructing ballistic orbits for
 
     // Get the true anomaly of the Sun about the target planet
-    // std::cout << "M, ecc " << planetOEs.M << " " << planetOEs.ecc << std::endl;
     meanToTrue(sunOEs.M, sunOEs.ecc, trueAnomaly);
 
     // Construct rotation vector
@@ -215,8 +214,7 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
     double dimensionalTime = getDimensionalTime(t);
     double currentTime = PARAMS::EPOCH + dimensionalTime; // t is measured in seconds
 
-    getSunVector(sunVector, currentTime);
-    sunVector /= PARAMS::R;  // Normalise
+    getSunVector(sunVector, currentTime); //  Comes out pre-normalised
     Eigen::Matrix<double, 3, 1> posDifference = positionVector - sunVector;
 
     // std::cout << sunVector << std::endl;
@@ -265,11 +263,14 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
     // Next, check for an escape
     double vMag = v.norm();
     double keplerEnergy = (vMag * vMag / 2. - 1./rMag);
-    if (rMag >= PARAMS::RS/PARAMS::R && keplerEnergy > 0) return 2;
+    if (rMag >= PARAMS::RS/PARAMS::R && keplerEnergy > 0) 
+    {
+        return 2;
+    }
 
     // Now, check for weakly stable
     Eigen::Matrix<double, 3, 1> angMomentum0 = r0.cross(v0);
-    double conditionOne = r.dot(angMomentum0.cross(v0));
+    double conditionOne = r.dot(angMomentum0.cross(r0));
     double conditionTwo = r.dot(r0);
     double conditionThree = v.dot(v0) * v0.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
 
