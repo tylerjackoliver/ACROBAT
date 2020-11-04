@@ -54,7 +54,7 @@ void OEsToState(ACROBAT::OEs &OE, Point<pointType> &stateOut)
     ConstSpiceDouble elts[8] = {OE.rp, OE.ecc, OE.inc, OE.longtd, OE.omega, OE.M, OE.epoch, PARAMS::targetGM};
     SpiceDouble et = OE.epoch;
     SpiceDouble state[6];
-
+    
     // Call converter
     conics_c(elts, et, state);
     
