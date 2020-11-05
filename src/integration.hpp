@@ -223,7 +223,7 @@ void getRotationMatrix(Eigen::Matrix<Type, 3, 1> &rotationVector, ACROBAT::OEs &
 void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const double t)
 {
     // First, the trivial derivatives
-    for (size_t i = 0; i < 3; ++i) dx[0] = x[i+3];
+    for (size_t i = 0; i < 3; ++i) dx[i] = x[i+3];
 
     // Now the not-so-trivial
     Eigen::Matrix<double, 3, 1> sunVector, positionVector, velocityVector, solarTerm;
@@ -280,9 +280,8 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
     // Next, check for an escape
     double vMag = v.norm();
     double keplerEnergy = (vMag * vMag / 2. - 1./rMag);
-    if (rMag >= PARAMS::RS/PARAMS::R && keplerEnergy > 0) 
+    if (rMag > PARAMS::RS/PARAMS::R && keplerEnergy > 0) 
     {
-        std::cout << "Here with R= " << r << " and v = " << v << std::endl;
         return 2;
     }
 
@@ -292,12 +291,11 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
     double conditionTwo = r.dot(r0);
     double conditionThree = v.dot(v0) * v0.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
 
-    if (conditionOne < std::numeric_limits<double>::epsilon() * 1000 && conditionTwo > 0 && conditionThree > 0) return 3;
+    if (fabs(conditionOne) < 1e-03 && conditionTwo > 0 && conditionThree > 0) return 3;
 
     // Lastly, check time
     double pi = 4.0 * std::atan(1.0);
-    double dimensionalTime = getDimensionalTime(t);
-    if (dimensionalTime >= PARAMS::maxT)  // maxT is defined in interface.hpp as 4 orbits about the Hill region for the given body
+    if (fabs(t) >= PARAMS::maxT)  // maxT is defined in interface.hpp as 4 orbits about the Hill region for the given body
     {
         return 4;
     }

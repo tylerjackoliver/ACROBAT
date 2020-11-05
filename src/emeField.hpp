@@ -9,10 +9,24 @@
 #include "bmeField.hpp"
 #include <unordered_map>
 #include "RADEC.hpp"
+#include <ostream>
+#include <algorithm>
+#include <string>
 
 extern "C"
 {
     #include "SpiceUsr.h"
+}
+
+
+/* @brief Returns the sign of a given numeric input
+@params[in] Numeric type for which the sign is desired, passed by reference
+@returns An integer giving the sign of the expression ( {1, 0, -1} )
+*/
+template <typename numericType>
+int sgn(numericType val)
+{
+    return (val > 0) - (val < 0);
 }
 
 namespace ACROBAT
@@ -120,7 +134,12 @@ namespace ACROBAT
                 // Get the set defined solely from the initial domain (i.e. 1-stable)
                 getSet(1, *this, points);
                 out[1] = points;
+                // Get the backwards set
+                points.clear();
+                getSet(-1, *this, points);
+                out[-1] = points;
 
+                // Now get the rest 
                 for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
                 {
                     // Clear points from the previous run
@@ -128,6 +147,73 @@ namespace ACROBAT
                     getSetFromPoints(revs, out[revs-1], *this, points);
                     out[revs] = points;
                 }
+            }
+
+            /* @brief Writes the results of the set generation to an output file
+               @param[in] stabNumber The number of revolutions a particle must complete.
+               @param[in] map Map of Point<int> indexed by the number of revolutions
+            */
+            void outputWrite(int& stabNumber, std::unordered_map<int, std::vector<Point<int>>>& map)
+            {
+                // Define n=-1 set
+                std::vector<Point<int>> backwardsSet = map[-1];
+                // Define the n-th set
+                std::vector<Point<int>> nthSet = map[stabNumber];
+
+                // Open output file
+                std::string fname = "stableSet_n=" + std::to_string(stabNumber);
+                std::ofstream output;
+                output.open(fname);
+
+                // The final set is those in nthSet that are also in backwardsSet
+                for(auto val : nthSet)
+                {
+                    if (std::find(backwardsSet.begin(), backwardsSet.end(), val) != backwardsSet.end()) // val is in backwardsSet
+                    {
+                        int idx1, idx2;
+                        idx1 = val.state[0];
+                        idx2 = val.state[1];
+                        Point<double> initialCondition = this->getValue(idx1, idx2);
+                        double x = initialCondition.state[0];
+                        double y = initialCondition.state[1];
+                        double z = initialCondition.state[2];
+                        output << x << "," << y << "," << z << std::endl;
+                    }
+                }
+                output.close();
+            }
+
+            /* @brief Writes the results of the set generation to an output file - writes r0 and w0
+               @param[in] stabNumber The number of revolutions a particle must complete.
+               @param[in] map Map of Point<int> indexed by the number of revolutions
+            */
+            void outputElementsWrite(int& stabNumber, ACROBAT::oeField& field, std::unordered_map<int, std::vector<Point<int>>>& map)
+            {
+                // Define n=-1 set
+                std::vector<Point<int>> backwardsSet = map[-1];
+                // Define the n-th set
+                std::vector<Point<int>> nthSet = map[stabNumber];
+
+                // Open output file
+                std::string fname = "stableSet_n=" + std::to_string(stabNumber);
+                std::ofstream output;
+                output.open(fname);
+
+                // The final set is those in nthSet that are also in backwardsSet
+                for(auto val : nthSet)
+                {
+                    if (std::find(backwardsSet.begin(), backwardsSet.end(), val) != backwardsSet.end()) // val is in backwardsSet
+                    {
+                        int idx1, idx2;
+                        idx1 = val.state[0];
+                        idx2 = val.state[1];
+                        ACROBAT::OEs initialCondition = field.getValue(idx1, idx2);
+                        double r0 = initialCondition.rp;
+                        double omega = initialCondition.omega;
+                        output << r0 << "," << omega << std::endl;
+                    }
+                }
+                output.close();
             }
         private:
             double _finalTime;      // Final time for the trajectory integration
@@ -151,22 +237,12 @@ namespace ACROBAT
     /* @brief Returns the sign of a given numeric input
        @params[in] Numeric type for which the sign is desired, passed by value
        @returns An integer giving the sign of the expression ( {1, 0, -1} )
-    */
-    template <typename numericType>
-    int sgn(numericType val)
-    {
-        return (val > 0) - (val < 0);
-    }
-
-    /* @brief Returns the sign of a given numeric input
-       @params[in] Numeric type for which the sign is desired, passed by reference
-       @returns An integer giving the sign of the expression ( {1, 0, -1} )
-    */
-    template <typename numericType>
-    int sgn(numericType& val)
-    {
-        return (val > 0) - (val < 0);
-    }
+    // */
+    // template <typename numericType>
+    // int sgn(numericType val)
+    // {
+    //     return (val > 0) - (val < 0);
+    // }
 
     /* @brief Obtains the rotation matrix for transforming from the BME frame to the EME frame at a given epoch
     *  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
@@ -316,7 +392,7 @@ namespace ACROBAT
         std::vector<unsigned long> setStatistics(4);
 
         // Get the integration direction (+ve or -ve time?)
-        int directionTime = 1;
+        int directionTime = sgn(stabNum);
         unsigned prog = 0;
 
         // Iterate through the conditions on the EME2000 field
@@ -336,7 +412,14 @@ namespace ACROBAT
                 setStatistics[status-1]++;
 
                 // If weakly stable, append its indices to the points vector
-                if (status == 3)
+                if (directionTime > 0 && status == 3)   // Want n-revolution points
+                {
+                    #pragma omp critical
+                    {
+                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                        points.insert(points.end(), thisPoint);
+                    }
+                } else if (directionTime < 0 && status == 2)
                 {
                     #pragma omp critical
                     {
@@ -382,10 +465,9 @@ namespace ACROBAT
     int getStatus(Point<pointType>& point, const doubleType& initTime, const integerType& direction)
     {
         // Initialise the stepper to be used
-        // typedef Eigen::Matrix<double, 6, 1> stateType;
         typedef std::vector<double> stateType;
         boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-011, /*absTol*/ 1e-011, method); // Wrong!
+        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
 
         // Fill an initial condition vector and normalize on entry
         stateType x0Dim(6), xDim(6), x0, x;
@@ -410,7 +492,6 @@ namespace ACROBAT
         {
             /* Make a step using the given solver & force function */
             make_step(stepper, x, currentTime, dt);
-                // void make_step(stepperType& stepper, stateType &x, timeType& currentTime, timeType& dt, function& f)
 
             /* Call the integrator observer function */
             status = integrationController(x, x0, currentTime);

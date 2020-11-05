@@ -43,6 +43,20 @@ namespace RADEC
         delta = delta0 + deltaNut * timeDelta;
     }
 
+    void mercuryRADEC(const double& epoch, double& alpha, double& delta)
+    {
+        double alpha0 = 281.0097 * deg2rad;
+        double delta0 = 61.4143 * deg2rad;
+
+        double timeDelta = epoch * secondsToCenturies;
+
+        double alphaPrec = -0.0328 * deg2rad;
+        double deltaNut = -.0049 * deg2rad;
+
+        alpha = alpha0 + alphaPrec * timeDelta;
+        delta = delta0 + deltaNut * timeDelta;
+    }
+
     void getAlphaDelta(const double& epoch, double& alpha, double& delta)
     {
         earthRADEC(epoch, alpha, delta);

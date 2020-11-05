@@ -92,8 +92,8 @@ void initialiseParams()
     oscelt_c(positionVector, PARAMS::EPOCH, PARAMS::hostGM, oes);
     PARAMS::M = oes[5];
 
-    /* And set the maximum time for the trajectory to be acrobatic */
-    PARAMS::maxT = 8.0 * (4.0 * std::atan(1.0)) * std::pow(PARAMS::RS, 1.5);
+    /* And set the maximum time for the trajectory to be acrobatic in non-dimensional units */
+    PARAMS::maxT = 8.0 * (4.0 * std::atan(1.0)) * std::pow(PARAMS::RS/PARAMS::R, 1.5);
 }
 
 void welcomeMessage()

@@ -9,7 +9,7 @@ namespace PARAMS
     /* Eccentricity of the ballistic capture orbit */ 
     const double ECC = 0.95;
     /* Inclination of the ballistic capture plane */
-    const double INC   = 30*std::atan(1.0)*4.0 / 180.;
+    const double INC   = 45*std::atan(1.0)*4.0 / 180.;
     /* Longitude of the ballistic capture orbit */
     const double LONGTD= 0.0;
     /* Epoch of the transfer */
