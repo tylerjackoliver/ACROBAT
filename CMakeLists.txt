@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.9)
 
 project (ACROBAT LANGUAGES CXX)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../bin)
-set (CMAKE_CXX_COMPILER icpc)
+set (CMAKE_CXX_COMPILER mpiicpc)
 
 # Find required C++ libraries
 

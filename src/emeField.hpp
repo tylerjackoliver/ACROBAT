@@ -12,6 +12,7 @@
 #include <ostream>
 #include <algorithm>
 #include <string>
+#include <mpi.h>
 
 extern "C"
 {
@@ -234,16 +235,6 @@ namespace ACROBAT
         std::cout << "\t Number of acrobatic: " << setStatistics[3] << std::endl;
     }
 
-    /* @brief Returns the sign of a given numeric input
-       @params[in] Numeric type for which the sign is desired, passed by value
-       @returns An integer giving the sign of the expression ( {1, 0, -1} )
-    // */
-    // template <typename numericType>
-    // int sgn(numericType val)
-    // {
-    //     return (val > 0) - (val < 0);
-    // }
-
     /* @brief Obtains the rotation matrix for transforming from the BME frame to the EME frame at a given epoch
     *  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
     *  @param[out] rot The rotation matrix to transform from the BME to the EME frame (6x6)
@@ -395,9 +386,12 @@ namespace ACROBAT
         int directionTime = sgn(stabNum);
         unsigned prog = 0;
 
-        // Iterate through the conditions on the EME2000 field
-        // #pragma omp parallel for shared(directionTime, setStatistics, points)
-        for (unsigned i = 0; i < field.getXExtent(); ++i)
+        // Iterate through the conditions on the EME2000 field - do jumps of our rank and pool size
+        int rank, poolSize, returnStatus;
+        MPI_Status mpiStatus;
+        returnStatus = MPI_Comm_size(MPI_COMM_WORLD, &poolSize);
+        returnStatus = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        for (unsigned i = rank; i < field.getXExtent(); i += poolSize)
         {
             for (unsigned j = 0; j < field.getYExtent(); ++j)
             {
@@ -407,31 +401,45 @@ namespace ACROBAT
                 // Get the status of this points behaviour
                 int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
 
-                // Increment the correct counter in the setStatistics vector (ordered s.t. indexes is status-1)
-                #pragma omp atomic
-                setStatistics[status-1]++;
+                // If the rank is zero, then add a number to our array *and* receive from the other members
+                if (rank == 0)
+                {
+                    setStatistics[status-1]++;
+                    // If weakly stable, append its indices to the points vector
+                    if (directionTime > 0 && status == 3)   // Want n-revolution points
+                    {
+                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                        points.insert(points.end(), thisPoint);
+                    } else if (directionTime < 0 && status == 2)
+                    {
+                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                        points.insert(points.end(), thisPoint);
+                    }
+                    for (size_t pool = 1; pool < poolSize; pool++)
+                    {
+                        returnStatus = MPI_Recv(status, 1, MPI_INT, pool, 0, MPI_COMM_WORLD, &mpiStatus);
+                        setStatistics[status-1]++;
 
-                // If weakly stable, append its indices to the points vector
-                if (directionTime > 0 && status == 3)   // Want n-revolution points
-                {
-                    #pragma omp critical
-                    {
-                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
-                        points.insert(points.end(), thisPoint);
+                        // If weakly stable, append its indices to the points vector
+                        if (directionTime > 0 && status == 3)   // Want n-revolution points
+                        {
+                            Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                            points.insert(points.end(), thisPoint);
+                        } else if (directionTime < 0 && status == 2)
+                        {
+                            Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                            points.insert(points.end(), thisPoint);
+                        }
                     }
-                } else if (directionTime < 0 && status == 2)
+                    prog++;
+                    std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << ". The status was" << status << std::endl;
+                } else 
                 {
-                    #pragma omp critical
-                    {
-                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
-                        points.insert(points.end(), thisPoint);
-                    }
+                    returnStatus = MPI_Send(status, 1, MPI_INT, 0, MPI_COMM_WORLD);
                 }
-                prog++;
-                std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << ". The status was" << status << std::endl;
             }
         }
-        printStatistics(stabNum, setStatistics);
+        if (rank == 0) printStatistics(stabNum, setStatistics);
     } // function
 
     /*  @brief Performs a step using a given boost stepper; returns the current time and the new state if successful
