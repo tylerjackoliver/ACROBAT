@@ -2,6 +2,10 @@
 #define __PARAMS_H__
 
 #include <cmath>
+extern "C"
+{
+    #include <SpiceUsr.h>
+}
 
 namespace PARAMS
 {
@@ -11,9 +15,9 @@ namespace PARAMS
     /* Inclination of the ballistic capture plane */
     const double INC   = 45*std::atan(1.0)*4.0 / 180.;
     /* Longitude of the ballistic capture orbit */
-    const double LONGTD= 0.0;
+    const double LONGTD= 3 * std::atan(1.0);
     /* Epoch of the transfer */
-    const double EPOCH = 24023040.;
+    const double EPOCH = str2et_c("2019 Jan 3 00:00");
     /* Common identifier or SPK ID of the TARGET */
     std::string TARGET="Earth";
     /* Common identifier or SPK ID of the HOST */

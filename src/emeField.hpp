@@ -406,36 +406,35 @@ namespace ACROBAT
                 {
                     setStatistics[status-1]++;
                     // If weakly stable, append its indices to the points vector
-                    if (directionTime > 0 && status == 3)   // Want n-revolution points
-                    {
-                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
-                        points.insert(points.end(), thisPoint);
-                    } else if (directionTime < 0 && status == 2)
+                    if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
                     {
                         Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
                         points.insert(points.end(), thisPoint);
                     }
                     for (size_t pool = 1; pool < poolSize; pool++)
                     {
-                        returnStatus = MPI_Recv(status, 1, MPI_INT, pool, 0, MPI_COMM_WORLD, &mpiStatus);
+                        returnStatus = MPI_Recv(&status, 1, MPI_INT, pool, 0, MPI_COMM_WORLD, &mpiStatus);
                         setStatistics[status-1]++;
-
                         // If weakly stable, append its indices to the points vector
-                        if (directionTime > 0 && status == 3)   // Want n-revolution points
+                        if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points
                         {
-                            Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
-                            points.insert(points.end(), thisPoint);
-                        } else if (directionTime < 0 && status == 2)
-                        {
-                            Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                            int idx1, idx2;
+                            returnStatus = MPI_Recv(&idx1, 1, MPI_INT, pool, pool, MPI_COMM_WORLD, &mpiStatus);
+                            returnStatus = MPI_Recv(&idx2, 1, MPI_INT, pool, pool, MPI_COMM_WORLD, &mpiStatus);
+                            Point<int> thisPoint; thisPoint[0] = idx1; thisPoint[1] = idx2;
                             points.insert(points.end(), thisPoint);
                         }
                     }
-                    prog++;
-                    std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << ". The status was" << status << std::endl;
+                    prog += poolSize;
+                    std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
                 } else 
                 {
-                    returnStatus = MPI_Send(status, 1, MPI_INT, 0, MPI_COMM_WORLD);
+                    returnStatus = MPI_Send(&status, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+                    if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2))
+                    {
+                        returnStatus = MPI_Send(&i, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+                        returnStatus = MPI_Send(&j, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+                    }
                 }
             }
         }

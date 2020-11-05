@@ -39,5 +39,5 @@ int main(void)
         std::cout << "Completed obtaining the stable sets. The time required was " << std::chrono::duration_cast<std::chrono::seconds>(end-start).count() << " seconds.";
     }
     mpiStatus = MPI_Barrier(MPI_COMM_WORLD);
-    mpiStatus = MPI_Finalize()
+    mpiStatus = MPI_Finalize();
 }
