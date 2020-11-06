@@ -29,7 +29,7 @@ namespace RADEC
         delta = delta0 - deltaNut * timeDelta;
     }
 
-    void marsRADEC(double &epoch, double &alpha, double &delta)
+    void marsRADEC(const double &epoch, double &alpha, double &delta)
     {
         double alpha0 = 317.68143 * deg2rad;
         double delta0 = 52.88650 * deg2rad;
@@ -59,7 +59,7 @@ namespace RADEC
 
     void getAlphaDelta(const double& epoch, double& alpha, double& delta)
     {
-        earthRADEC(epoch, alpha, delta);
+        marsRADEC(epoch, alpha, delta);
     }
 }
 #endif
