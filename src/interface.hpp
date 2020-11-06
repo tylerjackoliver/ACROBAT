@@ -3,6 +3,7 @@
 
 #include "Params.hpp"
 #include <cmath>
+#include <mpi.h>
 
 extern "C"
 {
@@ -76,6 +77,7 @@ void initialiseParams()
        legitimate.) We can then compute the L2-norm of this vector to give the position, and then
        compute the sphere of influence from that. */
     spkezr_c(PARAMS::TARGET.c_str(), PARAMS::EPOCH, "J2000", "NONE", PARAMS::HOST.c_str(), positionVector, &lt);
+    oscelt_c(positionVector, PARAMS::EPOCH, PARAMS::hostGM, oes);
 
     for (size_t idx = 0; idx < 3; ++idx)
     {
@@ -84,12 +86,10 @@ void initialiseParams()
     euclideanNorm = std::sqrt(euclideanNorm);
     
     // Finally, can compute the sphere of influence (R_SOI = (mTarg/mHost)^(2/5) * R_distance)
-    PARAMS::RS = std::pow(PARAMS::targetGM / PARAMS::hostGM, 2./5.) * euclideanNorm;
+    PARAMS::RS = std::pow(PARAMS::targetGM / PARAMS::hostGM, 2./5.) * (oes[0] / (1-oes[1]));
 
     /* Now, we can get the Mean anomaly of the TARGET around the HOST using the orbital elements of TARGET about HOST
       and the given computational epoch */
-    std::cout << PARAMS::hostGM << std::endl;
-    oscelt_c(positionVector, PARAMS::EPOCH, PARAMS::hostGM, oes);
     PARAMS::M = oes[5];
 
     /* And set the maximum time for the trajectory to be acrobatic in non-dimensional units */
@@ -98,23 +98,27 @@ void initialiseParams()
 
 void welcomeMessage()
 {
-    std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
-    std::cout << "             WELCOME TO ACROBAT              " << std::endl;
-    std::cout << "             ~~~~~~~~~~~~~~~~~~              " << std::endl;
-    std::cout << "  The balliStic CaptuRe OrbiT Analysis tooL  " << std::endl;
-    std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
-    std::cout << std::endl;
-    std::cout << "Author: Jack Tyler. jack.tyler@soton.ac.uk   " << std::endl;
-    std::cout << "Version: 0.0.1, Oct 1 2020                   " << std::endl;
-    std::cout << std::endl;
-    std::cout << "USER PARAMETERS                              " << std::endl;
-    std::cout << "~~~~~~~~~~~~~~~                              " << std::endl;
-    std::cout << "X-Domain: [" << OPTIONS.xDomainMin << ", " << OPTIONS.xDomainMax << "]" << std::endl;
-    std::cout << "Y-Domain: [" << OPTIONS.yDomainMin << ", " << OPTIONS.yDomainMax << "]" << std::endl;
-    std::cout << "Discretisations in X: " << OPTIONS.nX          << std::endl;
-    std::cout << "Discretisations in Y: " << OPTIONS.nY          << std::endl;
-    std::cout << "System mass parameter: " << OPTIONS.mu         << std::endl;
-
+    int rank, status;
+    status = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0)
+    {
+        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+        std::cout << "             WELCOME TO ACROBAT              " << std::endl;
+        std::cout << "             ~~~~~~~~~~~~~~~~~~              " << std::endl;
+        std::cout << "  The balliStic CaptuRe OrbiT Analysis tooL  " << std::endl;
+        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+        std::cout << std::endl;
+        std::cout << "Author: Jack Tyler. jack.tyler@soton.ac.uk   " << std::endl;
+        std::cout << "Version: 0.0.1, Oct 1 2020                   " << std::endl;
+        std::cout << std::endl;
+        std::cout << "USER PARAMETERS                              " << std::endl;
+        std::cout << "~~~~~~~~~~~~~~~                              " << std::endl;
+        std::cout << "X-Domain: [" << OPTIONS.xDomainMin << ", " << OPTIONS.xDomainMax << "]" << std::endl;
+        std::cout << "Y-Domain: [" << OPTIONS.yDomainMin << ", " << OPTIONS.yDomainMax << "]" << std::endl;
+        std::cout << "Discretisations in X: " << OPTIONS.nX          << std::endl;
+        std::cout << "Discretisations in Y: " << OPTIONS.nY          << std::endl;
+        std::cout << "System mass parameter: " << OPTIONS.mu         << std::endl;
+    }
     // Load the ephemeris files here
     furnsh_c("../spice/metakernel.tm");
     // Initialise parameters
