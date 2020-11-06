@@ -90,13 +90,18 @@ namespace ACROBAT
             {    
                 // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
                 std::vector<unsigned long> setStatistics(4);
+                std::vector<Point<vectorType>> privatePoints;
 
                 // Get the integration direction (+ve or -ve time?)
-                int directionTime = sgn(field.getFinalTime() - field.getInitialTime());
+                int directionTime = sgn(stabNum);
+                unsigned prog = 0;
 
-                // Iterate through the conditions on the EME2000 field
-                #pragma omp parallel for shared(directionTime)
-                for (unsigned i = 0; i < domain.size(); ++i)
+                // Iterate through the conditions on the EME2000 field - do jumps of our rank and pool size
+                int rank, poolSize, returnStatus;
+                MPI_Status mpiStatus;
+                returnStatus = MPI_Comm_size(MPI_COMM_WORLD, &poolSize);
+                returnStatus = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+                for (unsigned i = rank; i < domain.size(); i += poolSize)
                 {
                     // Get an initial position
                     Point<vectorType> indices = domain[i];
@@ -106,21 +111,65 @@ namespace ACROBAT
 
                     // Get the status of this points behaviour
                     int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
-                    
                     // Increment the correct counter in the setStatistics vector (ordered s.t. index is status-1)
-                    #pragma omp atomic
                     setStatistics[status-1]++;
-
                     // If weakly stable, append its indices to the points vector
-                    if (status == 2)
+                    if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
                     {
-                        #pragma omp critical
+                        Point<int> thisPoint; thisPoint[0] = idx1; thisPoint[1] = idx2;
+                        privatePoints.insert(privatePoints.end(), thisPoint);
+                    }
+                    prog += poolSize;
+                    if (rank == 0) std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
+                }
+                // Now every worker has completed their chunk, their results must all be sent to the rank 0 processor
+                if (rank == 0)
+                {   
+                    // Add our points to the global dataset first
+                    points.insert(points.begin(), privatePoints.begin(), privatePoints.end());
+                    // Receive the statistics for the dataset from other workers
+                    for (size_t worker = 1; worker < poolSize; ++worker)
+                    {
+                        for (size_t statusIndex = 0; statusIndex < setStatistics.size(); ++statusIndex)
                         {
-                            points.insert(points.end(), indices);
+                            int tmpCounter;
+                            returnStatus = MPI_Recv(&tmpCounter, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                            setStatistics[statusIndex] += tmpCounter;
+                        }
+                        // Now receive the points of interest - first, how many points we're expecting
+                        int numberOfPointsToAdd;
+                        returnStatus = MPI_Recv(&numberOfPointsToAdd, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                        // Now receive them all
+                        for (size_t pointToAdd = 0; pointToAdd < numberOfPointsToAdd; ++pointToAdd)
+                        {
+                            int idx1, idx2;
+                            returnStatus = MPI_Recv(&idx1, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                            returnStatus = MPI_Recv(&idx2, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                            Point<int> tmp;
+                            tmp.state[0] = idx1; tmp.state[1] = idx2;   // Assign indices to temporary point variable
+                            points.insert(points.end(), tmp);           // Add the temporary point variable to the end of the index
                         }
                     }
+                } else      // We need to send our data to the main communicator
+                {
+                    // Send the number of statistics
+                    for (size_t statusIndex = 0; statusIndex < setStatistics.size(); ++statusIndex)
+                    {
+                        returnStatus = MPI_Send(&setStatistics[statusIndex], 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+                    }
+                    // Now send the number of points this worker has to add to the global tally
+                    int numberOfPointsToSend = privatePoints.size();
+                    returnStatus = MPI_Send(&numberOfPointsToSend, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+                    // Now send the contents of this vector
+                    for (size_t pointToAdd = 0; pointToAdd < numberOfPointsToSend; ++pointToAdd)
+                    {
+                        int idx1, idx2;
+                        idx1 = privatePoints[pointToAdd].state[0]; idx2 = privatePoints[pointToAdd].state[1];
+                        returnStatus = MPI_Send(&idx1, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+                        returnStatus = MPI_Send(&idx2, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+                    }
                 }
-                printStatistics(stabNum, setStatistics);
+                if (rank == 0) printStatistics(stabNum, setStatistics);
             } // function
 
 
@@ -380,8 +429,8 @@ namespace ACROBAT
     void getSet(const integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
     {
         // Statuses
-        std::vector<unsigned long> setStatistics(4);
-
+        std::vector<int> setStatistics(4);
+        std::vector<Point<vectorType>> privatePoints;
         // Get the integration direction (+ve or -ve time?)
         int directionTime = sgn(stabNum);
         unsigned prog = 0;
@@ -400,42 +449,62 @@ namespace ACROBAT
                 
                 // Get the status of this points behaviour
                 int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
-
-                // If the rank is zero, then add a number to our array *and* receive from the other members
-                if (rank == 0)
+                setStatistics[status-1]++;
+                // If weakly stable, append its indices to the points vector
+                if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
                 {
-                    setStatistics[status-1]++;
-                    // If weakly stable, append its indices to the points vector
-                    if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
-                    {
-                        Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
-                        points.insert(points.end(), thisPoint);
-                    }
-                    for (size_t pool = 1; pool < poolSize; pool++)
-                    {
-                        returnStatus = MPI_Recv(&status, 1, MPI_INT, pool, 0, MPI_COMM_WORLD, &mpiStatus);
-                        setStatistics[status-1]++;
-                        // If weakly stable, append its indices to the points vector
-                        if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points
-                        {
-                            int idx1, idx2;
-                            returnStatus = MPI_Recv(&idx1, 1, MPI_INT, pool, pool, MPI_COMM_WORLD, &mpiStatus);
-                            returnStatus = MPI_Recv(&idx2, 1, MPI_INT, pool, pool, MPI_COMM_WORLD, &mpiStatus);
-                            Point<int> thisPoint; thisPoint[0] = idx1; thisPoint[1] = idx2;
-                            points.insert(points.end(), thisPoint);
-                        }
-                    }
-                    prog += poolSize;
-                    std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
-                } else 
-                {
-                    returnStatus = MPI_Send(&status, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-                    if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2))
-                    {
-                        returnStatus = MPI_Send(&i, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
-                        returnStatus = MPI_Send(&j, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
-                    }
+                    Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                    privatePoints.insert(privatePoints.end(), thisPoint);
                 }
+                prog += poolSize;
+            }
+            if (rank == 0) std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
+        }
+        // Now every worker has completed their chunk, their results must all be sent to the rank 0 processor
+        if (rank == 0)
+        {   
+            // Add our points to the global dataset first
+            points.insert(points.begin(), privatePoints.begin(), privatePoints.end());
+            // Receive the statistics for the dataset from other workers
+            for (size_t worker = 1; worker < poolSize; ++worker)
+            {
+                for (size_t statusIndex = 0; statusIndex < setStatistics.size(); ++statusIndex)
+                {
+                    int tmpCounter;
+                    returnStatus = MPI_Recv(&tmpCounter, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                    setStatistics[statusIndex] += tmpCounter;
+                }
+                // Now receive the points of interest - first, how many points we're expecting
+                int numberOfPointsToAdd;
+                returnStatus = MPI_Recv(&numberOfPointsToAdd, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                // Now receive them all
+                for (size_t pointToAdd = 0; pointToAdd < numberOfPointsToAdd; ++pointToAdd)
+                {
+                    int idx1, idx2;
+                    returnStatus = MPI_Recv(&idx1, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                    returnStatus = MPI_Recv(&idx2, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+                    Point<int> tmp;
+                    tmp.state[0] = idx1; tmp.state[1] = idx2;   // Assign indices to temporary point variable
+                    points.insert(points.end(), tmp);           // Add the temporary point variable to the end of the index
+                }
+            }
+        } else      // We need to send our data to the main communicator
+        {
+            // Send the number of statistics
+            for (size_t statusIndex = 0; statusIndex < setStatistics.size(); ++statusIndex)
+            {
+                returnStatus = MPI_Send(&setStatistics[statusIndex], 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+            }
+            // Now send the number of points this worker has to add to the global tally
+            int numberOfPointsToSend = privatePoints.size();
+            returnStatus = MPI_Send(&numberOfPointsToSend, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+            // Now send the contents of this vector
+            for (size_t pointToAdd = 0; pointToAdd < numberOfPointsToSend; ++pointToAdd)
+            {
+                int idx1, idx2;
+                idx1 = privatePoints[pointToAdd].state[0]; idx2 = privatePoints[pointToAdd].state[1];
+                returnStatus = MPI_Send(&idx1, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+                returnStatus = MPI_Send(&idx2, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
             }
         }
         if (rank == 0) printStatistics(stabNum, setStatistics);
@@ -494,6 +563,8 @@ namespace ACROBAT
 
         // Integration status
         int status = 0;
+        // Initialiser for the previous value of condition one
+        double prevCondOne = 1.0 * direction;
 
         while (status == 0) // While none of the stopping conditions have been verified
         {
@@ -501,7 +572,7 @@ namespace ACROBAT
             make_step(stepper, x, currentTime, dt);
 
             /* Call the integrator observer function */
-            status = integrationController(x, x0, currentTime);
+            status = integrationController(x, x0, currentTime, prevCondOne);
         }
         return status; // Return status when it doesn't correspond to 'keep going'
     }

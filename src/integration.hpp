@@ -222,13 +222,15 @@ void getRotationMatrix(Eigen::Matrix<Type, 3, 1> &rotationVector, ACROBAT::OEs &
 */
 void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const double t)
 {
+    Eigen::Matrix<double, 3, 1> sunVector, positionVector, velocityVector, solarTerm;
     // First, the trivial derivatives
-    for (size_t i = 0; i < 3; ++i) dx[i] = x[i+3];
+    for (size_t idx = 0; idx < 3; ++idx)
+    {
+        positionVector(idx) = x[idx];
+        dx[idx] = x[idx+3];
+    }
 
     // Now the not-so-trivial
-    Eigen::Matrix<double, 3, 1> sunVector, positionVector, velocityVector, solarTerm;
-
-    for (size_t i = 0; i < 3; ++i) positionVector(i) = x[i];
 
     double dimensionalTime = getDimensionalTime(t);
     double currentTime = PARAMS::EPOCH + dimensionalTime; // t is measured in seconds
@@ -249,6 +251,7 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
    @param[in] x Eigen::Matrix<Type, 6> containing the state vector of the particle at the given point.
    @param[in] x0 Eigen::Matrix<Type, 6> containing the initial position of the particle on the given trajectory
    @param[in] t Const double containing the current time-step of the integration (assumed seconds)
+   @param[inout] prevCondOne Holds the previous value of condition one to check for sign reversals
    @returns An integer corresponding to one of four separate events.
 
     Integer Return Codes
@@ -260,10 +263,8 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
     4: Trajectory is acrobatic (nothing happens!)
 */
 // template <typename Type>
-int integrationController(std::vector<double> &x, std::vector<double>& x0, const double t)
+int integrationController(std::vector<double> &x, std::vector<double>& x0, const double t, double & prevCondOne)
 {
-    int flag = 0;
-
     Eigen::Matrix<double, 3, 1> r, r0, v0, v;
     for (size_t idx = 0; idx < 3; ++idx)
     {
@@ -288,19 +289,21 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
     // Now, check for weakly stable
     Eigen::Matrix<double, 3, 1> angMomentum0 = r0.cross(v0);
     double conditionOne = r.dot(angMomentum0.cross(r0));
+    bool signChange = std::signbit(conditionOne * prevCondOne); // Returns True if negative
+
     double conditionTwo = r.dot(r0);
     double conditionThree = v.dot(v0) * v0.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
 
-    if (fabs(conditionOne) < 1e-03 && conditionTwo > 0 && conditionThree > 0) return 3;
+    if ( signChange && conditionTwo > 0 && conditionThree > 0) return 3;
 
     // Lastly, check time
-    double pi = 4.0 * std::atan(1.0);
     if (fabs(t) >= PARAMS::maxT)  // maxT is defined in interface.hpp as 4 orbits about the Hill region for the given body
     {
         return 4;
     }
 
     // If nothing else
+    prevCondOne = conditionOne;
     return 0;
 }
 
