@@ -26,7 +26,7 @@ void broadcastVector(std::vector<Point<int>>& vectorToBroadcast, int& rank)
     }
 }
 
-void reduceVector(std::vector<Point<int>>& vectorToReduce, int& rank, int& poolSize)
+void reduceVector(std::vector<Point<int>>& vectorToReduce, std::vector<Point<int>>& vectorToStore, int& rank, int& poolSize)
 {
     MPI_Status mpiStatus;
     int returnCode;
@@ -66,3 +66,27 @@ void reduceVector(std::vector<Point<int>>& vectorToReduce, int& rank, int& poolS
         }
     }
 }
+
+void reduceCount(int& myValue, int& reducedValue)
+{
+    MPI_Status mpiStatus;
+    int returnCode;
+    int numToReduce = 0;
+    reducedValue = 0;
+
+    if (rank == 0)
+    {
+        int numToReceive;
+        for (int worker = 0; worker < poolSize; ++worker)
+        {
+            int tmpValue;
+            returnCode = MPI_Recv(tmpValue, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+            reducedValue += tmpValue;
+        }
+    } else
+    {
+        returnCode = MPI_Send(myValue, 1, MPI_INT, 0, worker, MPI_COMM_WORLD);
+    }
+}
+
+#endif
