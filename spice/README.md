@@ -27,3 +27,5 @@ The metakernel structure should look like this:
  
    \begintext
 ```
+
+The user is advised that for studies involving Mars, the DE430(s) ephemeris does not include `Mars` as a valid body ID string, as the Mars Barycentre is used instead (~20mm difference.) Using the NAIF SPICE ID `499` is recommended instead.
