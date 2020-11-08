@@ -4,6 +4,10 @@
 #include <mpi.h>
 #include "Point.hpp"
 
+/* @brief Broadcasts a vector of integer points from the master worker onto all other workers.
+   @param[in] vectorToBroadcast Vector, fully defined on rank zero, to be broadcast to all other workers.
+   @param[in] rank Rank of this worker in the pool.
+*/
 void broadcastVector(std::vector<Point<int>>& vectorToBroadcast, int& rank)
 {
     MPI_Status mpiStatus;
@@ -28,6 +32,12 @@ void broadcastVector(std::vector<Point<int>>& vectorToBroadcast, int& rank)
     if (rank != 0) vectorToBroadcast = tmpVector;
 }
 
+/* @brief Reduces a std::vector<Point<int>> from all workers onto the master worker (rank zero.)
+   @param[in] vectorToReduce Local vector, defined on all workers, to reduce
+   @param[out] vectorToStore Target for the vector reduction. Valid only on rank zero.
+   @param[in] rank The rank of this worker in the overall pool.
+   @param[in] poolSize The number of workers in the pool.
+*/
 void reduceVector(std::vector<Point<int>>& vectorToReduce, std::vector<Point<int>>& vectorToStore, int& rank, int& poolSize)
 {
     MPI_Status mpiStatus;
@@ -70,6 +80,10 @@ void reduceVector(std::vector<Point<int>>& vectorToReduce, std::vector<Point<int
     }
 }
 
+/* @brief Reduces (sums) all values of a given integer onto the master worker (rank zero.)
+   @param[in] myValue Local value of the integer to reduce
+   @param[out] reducedValue The reduced integer; valid only on rank zero.
+*/
 void reduceCount(int& myValue, int& reducedValue)
 {
     MPI_Status mpiStatus;
@@ -92,13 +106,13 @@ void reduceCount(int& myValue, int& reducedValue)
     }
 }
 
+/* @brief Broadcasts the count of a given variable from the master worker to all other workers in the pool.
+   @param[in] countToBroadcast Integer to broadcast
+*/
 void broadcastCount(int& countToBroadcast)
 {
     int returnCode;
     returnCode = MPI_Bcast(&countToBroadcast, 1, MPI_INT, 0, MPI_COMM_WORLD);
 }
-
-
-
 
 #endif
