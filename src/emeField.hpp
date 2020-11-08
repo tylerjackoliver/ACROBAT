@@ -11,6 +11,7 @@
 #include "RADEC.hpp"
 #include <ostream>
 #include <algorithm>
+#include "mpiWrappers.hpp"
 #include <string>
 #include <mpi.h>
 
@@ -89,7 +90,7 @@ namespace ACROBAT
             void getSetFromPoints(const integerType& stabNum, std::vector<Point<vectorType>> &domain, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
             {    
                 // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
-                std::vector<unsigned long> setStatistics(4);
+                std::vector<int> setStatistics(4);
                 std::vector<Point<vectorType>> privatePoints;
 
                 // Get the integration direction (+ve or -ve time?)
@@ -120,55 +121,15 @@ namespace ACROBAT
                         privatePoints.insert(privatePoints.end(), thisPoint);
                     }
                     prog += poolSize;
-                    if (rank == 0) std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
+                    if (rank == 0) std::cout << "Completed integration " << prog << " of " << domain.size() << "." << std::endl;
                 }
-                // Now every worker has completed their chunk, their results must all be sent to the rank 0 processor
-                if (rank == 0)
-                {   
-                    // Add our points to the global dataset first
-                    points.insert(points.begin(), privatePoints.begin(), privatePoints.end());
-                    // Receive the statistics for the dataset from other workers
-                    for (size_t worker = 1; worker < poolSize; ++worker)
-                    {
-                        for (size_t statusIndex = 0; statusIndex < setStatistics.size(); ++statusIndex)
-                        {
-                            int tmpCounter;
-                            returnStatus = MPI_Recv(&tmpCounter, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
-                            setStatistics[statusIndex] += tmpCounter;
-                        }
-                        // Now receive the points of interest - first, how many points we're expecting
-                        int numberOfPointsToAdd;
-                        returnStatus = MPI_Recv(&numberOfPointsToAdd, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
-                        // Now receive them all
-                        for (size_t pointToAdd = 0; pointToAdd < numberOfPointsToAdd; ++pointToAdd)
-                        {
-                            int idx1, idx2;
-                            returnStatus = MPI_Recv(&idx1, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
-                            returnStatus = MPI_Recv(&idx2, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
-                            Point<int> tmp;
-                            tmp.state[0] = idx1; tmp.state[1] = idx2;   // Assign indices to temporary point variable
-                            points.insert(points.end(), tmp);           // Add the temporary point variable to the end of the index
-                        }
-                    }
-                } else      // We need to send our data to the main communicator
+                for (int dimension = 0; dimension < setStatistics.size(); ++dimension)
                 {
-                    // Send the number of statistics
-                    for (size_t statusIndex = 0; statusIndex < setStatistics.size(); ++statusIndex)
-                    {
-                        returnStatus = MPI_Send(&setStatistics[statusIndex], 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
-                    }
-                    // Now send the number of points this worker has to add to the global tally
-                    int numberOfPointsToSend = privatePoints.size();
-                    returnStatus = MPI_Send(&numberOfPointsToSend, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
-                    // Now send the contents of this vector
-                    for (size_t pointToAdd = 0; pointToAdd < numberOfPointsToSend; ++pointToAdd)
-                    {
-                        int idx1, idx2;
-                        idx1 = privatePoints[pointToAdd].state[0]; idx2 = privatePoints[pointToAdd].state[1];
-                        returnStatus = MPI_Send(&idx1, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
-                        returnStatus = MPI_Send(&idx2, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
-                    }
+                    reduceCount(setStatistics[dimension], setStatistics[dimension]);
+                    broadcastCount(setStatistics[dimension]);
                 }
+                reduceVector(privatePoints, points, rank, poolSize);
+                broadcastVector(points, rank);
                 if (rank == 0) printStatistics(stabNum, setStatistics);
             } // function
 
@@ -188,7 +149,6 @@ namespace ACROBAT
                 points.clear();
                 getSet(-1, *this, points);
                 out[-1] = points;
-
                 // Now get the rest 
                 for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
                 {
@@ -460,10 +420,15 @@ namespace ACROBAT
             if (rank == 0) std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
         }
         // Now every worker has completed their chunk, their results must all be sent to the rank 0 processor
+        std::cout << "Waiting to reduce" << std::endl;
         reduceVector(privatePoints, points, rank, poolSize);
+        std::cout << "Reduced, waiting to broadcast..." << std::endl;
+        broadcastVector(points, rank);
+        std::cout << "Reduced." << std::endl;
         for (unsigned i = 0; i < setStatistics.size(); ++i)
         {
-            reduceCount(setStatistics[i], setStatistics[i]);
+            reduceCount(setStatistics[i], setStatistics[i]); // Send from all cores to receive at master
+            broadcastCount(setStatistics[i]);  // Send from master to all cores
         }
         if (rank == 0) printStatistics(stabNum, setStatistics);
     } // function

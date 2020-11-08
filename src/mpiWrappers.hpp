@@ -8,21 +8,24 @@ void broadcastVector(std::vector<Point<int>>& vectorToBroadcast, int& rank)
 {
     MPI_Status mpiStatus;
     int returnCode;
-    int numToBroadcast = vectorToBroadcast.size();
+    int numToBroadcast;
+    std::vector<Point<int>> tmpVector;
+    if (rank == 0) numToBroadcast = vectorToBroadcast.size();
     /* First, send the number of broadcasts we're going to have to do */
-    if (rank != 0) vectorToBroadcast.clear();
     returnCode = MPI_Bcast(&numToBroadcast, 1, MPI_INT, 0, MPI_COMM_WORLD);
     for (size_t idx = 0; idx < numToBroadcast; ++idx)
     {
         Point<int> tmpPoint;
         for (size_t dimension = 0; dimension < 6; ++dimension)
         {
-            int tmp = vectorToBroadcast[idx].state[dimension];
+            int tmp;
+            if (rank == 0) tmp = vectorToBroadcast[idx].state[dimension];
             returnCode = MPI_Bcast(&tmp, 1, MPI_INT, 0, MPI_COMM_WORLD);
             tmpPoint.state[dimension] = tmp;
         }
-        if (rank != 0) vectorToBroadcast.push_back(tmpPoint);
+        if (rank != 0) tmpVector.push_back(tmpPoint);
     }
+    if (rank != 0) vectorToBroadcast = tmpVector;
 }
 
 void reduceVector(std::vector<Point<int>>& vectorToReduce, std::vector<Point<int>>& vectorToStore, int& rank, int& poolSize)
@@ -33,6 +36,8 @@ void reduceVector(std::vector<Point<int>>& vectorToReduce, std::vector<Point<int
     if (rank == 0)
     {
         int numToReceive;
+        // Copy vectorToReduce into vectorToStore on rank 0
+        vectorToStore.insert(vectorToStore.end(), vectorToReduce.begin(), vectorToReduce.end());
         for (int worker = 1; worker < poolSize; ++worker)
         {
             returnCode = MPI_Recv(&numToReceive, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
@@ -47,7 +52,7 @@ void reduceVector(std::vector<Point<int>>& vectorToReduce, std::vector<Point<int
                     tmpState[dimension] = tmpValue;
                 }
                 tmpPoint.state = tmpState;
-                vectorToReduce.push_back(tmpPoint);
+                vectorToStore.push_back(tmpPoint);
             }
         }
     } else
@@ -89,10 +94,7 @@ void reduceCount(int& myValue, int& reducedValue)
 
 void broadcastCount(int& countToBroadcast)
 {
-    int poolSize;
-    int rank;
     int returnCode;
-
     returnCode = MPI_Bcast(&countToBroadcast, 1, MPI_INT, 0, MPI_COMM_WORLD);
 }
 
