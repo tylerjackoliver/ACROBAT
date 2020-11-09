@@ -5,10 +5,8 @@
 #include <boost/numeric/odeint/stepper/generation/make_controlled.hpp>
 #include <boost/numeric/odeint/stepper/generation/make_dense_output.hpp>
 #include <boost/numeric/odeint/stepper/runge_kutta_dopri5.hpp>
-#include <boost/numeric/odeint/stepper/runge_kutta_fehlberg78.hpp>
 #include <stdexcept>
 #include <vector>
-#include <boost/math/tools/roots.hpp> // Bracket_and_solve_root
 #include <boost/numeric/odeint.hpp>
 
 /* @brief Computes the cross product of two size-3 std::vectors.
@@ -27,7 +25,7 @@ void cross3(std::vector<double> &a, std::vector<double>& b, std::vector<double>&
     c.reserve(3);
     // Compute
     c[0] = a[1] * b[2] - a[2] * b[1];
-    c[1] = a[2] * b[0] - a[0] * b[2]; // Sign changed d/t determinant
+    c[1] = a[2] * b[0] - a[0] * b[2]; 
     c[2] = a[0] * b[1] - a[1] * b[0];
 }
 
@@ -39,15 +37,14 @@ void cross3(std::vector<double> &a, std::vector<double>& b, std::vector<double>&
 template <typename Type>
 Type dotProduct(std::vector<Type>& a, std::vector<Type>& b)
 {
-    Type dot;
-    if (a.size() != b.size())
+    Type dot = 0;                                                                               // Output
+    if (a.size() != b.size())                                                                   // Check valid inputs
     {
         throw std::domain_error("The input vectors to dotProduct are not the same size.");
     }
-    dot = 0;
     for (size_t idx = 0; idx < a.size(); ++idx)
     {
-        dot += a[idx] * b[idx]; // Intel compiler will auto-unroll this for -O2
+        dot += a[idx] * b[idx];                                                                 // Intel compiler will auto-unroll this for -O2
     }
     return dot;
 }
@@ -68,56 +65,62 @@ Type dotProduct(std::vector<Type>& a, std::vector<Type>& b)
 template <typename stepperType, typename vectorType>
 void obtainZero(std::vector<vectorType>& x0, std::vector<vectorType>& xGuess, double& t0Guess, double tol=1e-06)
 {
-    // (Unattractively) instantiate a stepper for use in the integration
-    typedef boost::numeric::odeint::result_of::make_dense_output
+    
+    typedef boost::numeric::odeint::result_of::make_dense_output                                // (Unattractively) instantiate stepper types in the integration
                                                <boost::numeric::odeint::runge_kutta_dopri5
                                                <std::vector<double>>>::type dense_stepper_type;
     dense_stepper_type stepper = make_dense_output(1.e-012, 1.e-012, 
                                                    boost::numeric::odeint::runge_kutta_dopri5
-                                                   <std::vector<double>>());
+                                                   <std::vector<double>>());                    // Makes a dense stepper from the RK5 solver
+    typedef dense_stepper_type::time_type time_type;                                            // Define later units in the same datatype the integrator is using 
+    stepper.initialize(xGuess, t0Guess, -.001);                                                 // Initialise solver with the initial values of the ODE
 
-    // Initialise the integration - going backwards...
-    typedef dense_stepper_type::time_type time_type;
-    double conditionOnePrevStep = 1.0; // Condition one on the previous step 
-    double conditionOne = 1.0; // Condition one on this step; check for sign change
-    bool signChange = false;
-    std::pair<time_type, time_type> currentTime = {1, 1};
-    stepper.initialize(xGuess, t0Guess, -.001);
+    double conditionOnePrevStep = 1.0;                                                          // Condition one on the previous step 
+    double conditionOne = 1.0;                                                                  // Condition one on this step; check for sign change
+    bool signChange = false;                                                                    // Have we reached the root?
+    std::pair<time_type, time_type> currentTime;                                                // Contains (t, t+dt) on exit from do_step
 
-    while (!signChange)
+    while (!signChange)                                                                         // While we aren't bracketing the root
     {
-        conditionOnePrevStep = conditionOne;
-        currentTime = stepper.do_step(forceFunction);
         std::vector<double> currentState(6);
-        stepper.calc_state(currentTime.second, currentState);
-        conditionOne = getConditionOne(currentState, x0);
-        signChange = conditionOne * conditionOnePrevStep < 0;
+        conditionOnePrevStep = conditionOne;                                                    // Save the previous value of the objective function 
+        currentTime = stepper.do_step(forceFunction);                                           // Make a step
+        stepper.calc_state(currentTime.second, currentState);                                   // Calculate the state at the later time (t + dt)
+        conditionOne = getConditionOne(currentState, x0);                                       // Get the value of the objective function at this point
+        signChange = conditionOne * conditionOnePrevStep < 0;                                   // Check if we're bracketing the root here
     }
 
     // Now we know we're bracketing the root. Start an interval bisection
     time_type lower, upper, mid;
     lower = currentTime.first;
     upper = currentTime.second;
+    const int maxIterations = 100;                                                              // Guards against stale while loop
+    int numberOfIterations = 0;
 
-    while (lower <= upper)
+    while (lower < upper && numberOfIterations < maxIterations)
     {
-        mid = lower + (upper - lower) / 2.;
+        mid = lower + (upper - lower) / 2.;                                                     // Interval bisection - compute midpoint
         std::vector<double> state(6);
-        stepper.calc_state(mid, state);
+        stepper.calc_state(mid, state);                                                         // Extract state at the midpoint
         
-        if ( fabs(conditionOne) < tol)  // We've found the root
+        if ( fabs(conditionOne) < tol)                                                          // We've found the root
         {
-            xGuess = state;
-            t0Guess = mid;
+            xGuess = state;                                                                     // Set state to the output
+            t0Guess = mid;                                                                      // Set time to the output
             break;
         }
-        else if (conditionOne < 0) // Lower is too low
+        else if (conditionOne < 0)                                                              // Lower is too low
         {
             lower = mid;
-        } else  // Upper is too high
+        } else                                                                                  // Upper is too high
         {
             upper = mid;
         }
+        numberOfIterations++;                                                                   // Increment counter
+    }
+    if (numberOfIterations == maxIterations)
+    {
+        t0Guess = -1;                                                 // Signal failure
     }
 }
 
@@ -129,17 +132,16 @@ void obtainZero(std::vector<vectorType>& x0, std::vector<vectorType>& xGuess, do
 double getConditionOne(std::vector<double>& state, std::vector<double>& x0)
 {
     std::vector<double> angularMomentum(3), r0(3), v0(3), r(3), v(3), angMomentumCrossR0(3);
-    for (size_t idx = 0; idx < state.size() / 2; idx++)
+    for (size_t idx = 0; idx < state.size() / 2; idx++)                                         // Assign values from state vector to position, position derivative
     {
         r[idx] = state[idx];
         r0[idx] = x0[idx];
-        v[idx] = state[idx+3]; // Assuming 6-dimensional vector
+        v[idx] = state[idx+3]; 
         v0[idx] = x0[idx+3];
     }
-    // Get the initial angular momentum vector
-    cross3(r0, v0, angularMomentum);
-    cross3(angularMomentum, r0, angMomentumCrossR0);
-    double dot = dotProduct(r, angMomentumCrossR0);
+    cross3(r0, v0, angularMomentum);                                                            // Get the angular momentum vector
+    cross3(angularMomentum, r0, angMomentumCrossR0);                                            // Cross angular momentum vector with the initial position 
+    double dot = dotProduct(r, angMomentumCrossR0);                                             // Dot product of the above yields condition one
     return dot;
 }
 
