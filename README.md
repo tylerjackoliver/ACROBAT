@@ -57,6 +57,7 @@ Specifically, the function `bods2c_c` ([here](https://naif.jpl.nasa.gov/pub/naif
 * [BOOST](https://www.boost.org/)
 * [OpenMP](https://www.openmp.org/)
 * [Intel MKL](https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html)
+* [Intel MPI](https://software.intel.com/content/www/us/en/develop/tools/mpi-library.html), although any MPI implementation that supports the Intel C++ compiler will do.
 * [CMake](https://cmake.org/)
 * [SPICE](https://naif.jpl.nasa.gov/naif/)
 
