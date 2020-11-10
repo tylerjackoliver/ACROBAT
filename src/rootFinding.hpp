@@ -49,6 +49,28 @@ Type dotProduct(std::vector<Type>& a, std::vector<Type>& b)
     return dot;
 }
 
+/* @brief Obtain the value of condition one - the intersection of a trajectory with a plane - for a given state state.
+ * @param[in] state State at which to compute the value of condition one for
+ * @param[in] x0 The initial condition for the given trajectory
+ * @returns The value of condition one at the given point.
+ */
+double getConditionOne(std::vector<double>& state, std::vector<double>& x0)
+{
+    std::vector<double> angularMomentum(3), r0(3), v0(3), r(3), v(3), angMomentumCrossR0(3);
+    for (size_t idx = 0; idx < state.size() / 2; idx++)                                         // Assign values from state vector to position, position derivative
+    {
+        r[idx] = state[idx];
+        r0[idx] = x0[idx];
+        v[idx] = state[idx+3]; 
+        v0[idx] = x0[idx+3];
+    }
+    cross3(r0, v0, angularMomentum);                                                            // Get the angular momentum vector
+    cross3(angularMomentum, r0, angMomentumCrossR0);                                            // Cross angular momentum vector with the initial position 
+    double dot = dotProduct(r, angMomentumCrossR0);                                             // Dot product of the above yields condition one
+    return dot;
+}
+
+
 /* @brief Obtains the zero of the intersection of a trajectory with a given reference plane.
  * @param[in] x0 The initial conditon of the trajectory at t = 0.
  * @param[inout] xGuess On function entry, this is a guess for the state immediately _after_ the root. On exit, this is the state _at_ the root.
@@ -62,8 +84,7 @@ Type dotProduct(std::vector<Type>& a, std::vector<Type>& b)
  *      - An interval bisection method is then used in this root bracket to identify, within a tolerance tol, where the root lies.
  *      - The state at this time is then computed and assigned to the input xGuess. The time at the root is assigned to the input t0Guess.
  */
-template <typename stepperType, typename vectorType>
-void obtainZero(std::vector<vectorType>& x0, std::vector<vectorType>& xGuess, double& t0Guess, double tol=1e-06)
+void obtainZero(std::vector<double>& x0, std::vector<double>& xGuess, double& t0Guess, double tol=1e-06)
 {
     
     typedef boost::numeric::odeint::result_of::make_dense_output                                // (Unattractively) instantiate stepper types in the integration
@@ -122,27 +143,6 @@ void obtainZero(std::vector<vectorType>& x0, std::vector<vectorType>& xGuess, do
     {
         t0Guess = -1;                                                 // Signal failure
     }
-}
-
-/* @brief Obtain the value of condition one - the intersection of a trajectory with a plane - for a given state state.
- * @param[in] state State at which to compute the value of condition one for
- * @param[in] x0 The initial condition for the given trajectory
- * @returns The value of condition one at the given point.
- */
-double getConditionOne(std::vector<double>& state, std::vector<double>& x0)
-{
-    std::vector<double> angularMomentum(3), r0(3), v0(3), r(3), v(3), angMomentumCrossR0(3);
-    for (size_t idx = 0; idx < state.size() / 2; idx++)                                         // Assign values from state vector to position, position derivative
-    {
-        r[idx] = state[idx];
-        r0[idx] = x0[idx];
-        v[idx] = state[idx+3]; 
-        v0[idx] = x0[idx+3];
-    }
-    cross3(r0, v0, angularMomentum);                                                            // Get the angular momentum vector
-    cross3(angularMomentum, r0, angMomentumCrossR0);                                            // Cross angular momentum vector with the initial position 
-    double dot = dotProduct(r, angMomentumCrossR0);                                             // Dot product of the above yields condition one
-    return dot;
 }
 
 #endif

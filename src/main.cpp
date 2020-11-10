@@ -22,14 +22,14 @@ int main(void)
     std::vector<double> dx = x;
 
     // Initialise domain
-    ACROBAT::field2D<double> domainBME(600, 360);
-    ACROBAT::oeField oeDomain(600, 360);
-    ACROBAT::bmeField<Point<double>> bmeDomain(600, 360);
+    ACROBAT::field2D<double> domainBME(100,100);
+    ACROBAT::oeField oeDomain(100,100);
+    ACROBAT::bmeField<Point<double>> bmeDomain(100,100);
 
-    oeDomain.initialiseField(PARAMS::R + 100, PARAMS::RS-100, 0., 8.*std::atan(1.0)); // R, omega
+    oeDomain.initialiseField(PARAMS::R, PARAMS::RS, 0., 8.*std::atan(1.0)); // R, omega
     bmeDomain.initialiseField(oeDomain);
 
-    ACROBAT::emeField<Point<double>> emeDomain(600,360);
+    ACROBAT::emeField<Point<double>> emeDomain(100,100);
     emeDomain.initialiseField(bmeDomain);
     emeDomain.setInitialTime(0.0);
     std::unordered_map<int, std::vector<Point<int>>> results;

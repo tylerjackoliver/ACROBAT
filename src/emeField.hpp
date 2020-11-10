@@ -13,6 +13,7 @@
 #include <algorithm>
 #include "mpiWrappers.hpp"
 #include <string>
+#include "rootFinding.hpp"
 #include <mpi.h>
 
 extern "C"
@@ -87,11 +88,12 @@ namespace ACROBAT
                 @param[out] points A vector containing the indices of the corresponding capture set
             */ 
             template <typename integerType, typename fieldType, typename vectorType>
-            void getSetFromPoints(const integerType& stabNum, std::vector<Point<vectorType>> &domain, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
+            void getSetFromPoints(const integerType& stabNum, std::vector<Point<vectorType>> &domain, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points, std::vector<Point<double>>& initialConditions)
             {    
                 // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
                 std::vector<int> setStatistics(4);
                 std::vector<Point<vectorType>> privatePoints;
+                std::vector<Point<double>> privateCoordinates;
 
                 // Get the integration direction (+ve or -ve time?)
                 int directionTime = sgn(stabNum);
@@ -108,17 +110,20 @@ namespace ACROBAT
                     Point<vectorType> indices = domain[i];
                     int idx1 = indices.state[0];
                     int idx2 = indices.state[1];
-                    Point<double> currentPoint = field.getValue(idx1, idx2);
+                    Point<double> currentPoint = initialConditions[i];
+                    std::vector<double> stateAtCrossing(6);
 
                     // Get the status of this points behaviour
-                    int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
+                    int status = getStatus(currentPoint, field.getInitialTime(), directionTime, stateAtCrossing);
                     // Increment the correct counter in the setStatistics vector (ordered s.t. index is status-1)
                     setStatistics[status-1]++;
                     // If weakly stable, append its indices to the points vector
                     if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
                     {
                         Point<int> thisPoint; thisPoint[0] = idx1; thisPoint[1] = idx2;
+                        Point<double> toInsert(stateAtCrossing);
                         privatePoints.insert(privatePoints.end(), thisPoint);
+                        privateCoordinates.insert(privateCoordinates.end(), toInsert);
                     }
                     prog += poolSize;
                     if (rank == 0) std::cout << "Completed integration " << prog << " of " << domain.size() << "." << std::endl;
@@ -128,7 +133,10 @@ namespace ACROBAT
                     reduceCount(setStatistics[dimension], setStatistics[dimension]);
                     broadcastCount(setStatistics[dimension]);
                 }
+                initialConditions.clear();
                 reduceVector(privatePoints, points, rank, poolSize);
+                reduceVector(privateCoordinates, initialConditions, rank, poolSize);
+                broadcastVector(initialConditions, rank);
                 broadcastVector(points, rank);
                 if (rank == 0) printStatistics(stabNum, setStatistics);
             } // function
@@ -139,23 +147,33 @@ namespace ACROBAT
             * @param[out] std::unordered_map The keys are the number of rotations, and the values are a std::vector<> containing the points comprising the set.
             */
             template <typename integerType, typename pointType>
-            void getStableSet(integerType stabNumber, std::unordered_map<int, std::vector<Point<pointType>>>& out)
+            void getStableSet(integerType stabNumber, std::unordered_map<int, std::vector<Point<pointType>>>& outIndices)
             {
+                std::unordered_map<int, std::vector<Point<double>>> initConds;
                 std::vector<Point<pointType>> points;
+                std::vector<Point<double>> initialConditions;
                 // Get the set defined solely from the initial domain (i.e. 1-stable)
-                getSet(1, *this, points);
-                out[1] = points;
+                getSet(1, *this, points, initialConditions);
+                outIndices[1] = points;
+                initConds[1] = initialConditions;
                 // Get the backwards set
-                points.clear();
-                getSet(-1, *this, points);
-                out[-1] = points;
+                //points.clear();
+                //initialConditions.clear();
+                //getSet(-1, *this, points, initialConditions);
+                //outIndices[-1] = points;
+                //initConds[-1] = initialConditions;
                 // Now get the rest 
                 for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
                 {
                     // Clear points from the previous run
                     points.clear();
-                    getSetFromPoints(revs, out[revs-1], *this, points);
-                    out[revs] = points;
+                    initialConditions.clear();
+                    initialConditions = initConds[revs-1];
+                    std::cout << initialConditions[0];
+                    std::cout << std::endl;
+                    getSetFromPoints(revs, outIndices[revs-1], *this, points, initialConditions);
+                    outIndices[revs] = points;
+                    initConds[revs] = initialConditions;
                 }
             }
 
@@ -385,12 +403,13 @@ namespace ACROBAT
         @param[in] field EME2000 Field containing the domain to integrate
         @param[out] points std::vector<> of Points containing the indices of points in the set
     */
-    template <typename integerType, typename fieldType, typename vectorType>
-    void getSet(const integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points)
+    template <typename integerType, typename fieldType>
+    void getSet(const integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vector<Point<int>> &pointIndices, std::vector<Point<double>>& pointCoordinates)
     {
         // Statuses
         std::vector<int> setStatistics(4);
-        std::vector<Point<vectorType>> privatePoints;
+        std::vector<Point<int>> privatePoints;
+        std::vector<Point<double>> privateCoordinates;
         // Get the integration direction (+ve or -ve time?)
         int directionTime = sgn(stabNum);
         unsigned prog = 0;
@@ -405,26 +424,34 @@ namespace ACROBAT
             {
                 // Get current point
                 Point<double> currentPoint = field.getValue(i, j);
+                std::vector<double> stateAtCrossing(6);
+ 
                 
                 // Get the status of this points behaviour
-                int status = getStatus(currentPoint, field.getInitialTime(), directionTime);
+                int status = getStatus(currentPoint, field.getInitialTime(), directionTime, stateAtCrossing);
                 setStatistics[status-1]++;
                 // If weakly stable, append its indices to the points vector
                 if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
                 {
                     Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
+                    Point<double> coordinateToAdd(stateAtCrossing);
                     privatePoints.insert(privatePoints.end(), thisPoint);
+                    privateCoordinates.insert(privateCoordinates.end(), coordinateToAdd);
                 }
                 prog += poolSize;
             }
             if (rank == 0) std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
         }
         // Now every worker has completed their chunk, their results must all be sent to the rank 0 processor
-        std::cout << "Waiting to reduce" << std::endl;
-        reduceVector(privatePoints, points, rank, poolSize);
-        std::cout << "Reduced, waiting to broadcast..." << std::endl;
-        broadcastVector(points, rank);
-        std::cout << "Reduced." << std::endl;
+        std::cout << "Rank " << rank << " reducing one..." << std::endl;
+        reduceVector(privatePoints, pointIndices, rank, poolSize);
+        std::cout << "Rank " << rank << " reducing two..." << std::endl;
+        reduceVector(privateCoordinates, pointCoordinates, rank, poolSize);
+        std::cout << "Rank " << rank << " broadcasting one..." << std::endl;
+        broadcastVector(pointIndices, rank);
+        std::cout << "Rank " << rank << " broadcasting two..." << std::endl;
+        broadcastVector(pointCoordinates, rank);
+        std::cout << "done." << std::endl;
         for (unsigned i = 0; i < setStatistics.size(); ++i)
         {
             reduceCount(setStatistics[i], setStatistics[i]); // Send from all cores to receive at master
@@ -432,6 +459,7 @@ namespace ACROBAT
         }
         if (rank == 0) printStatistics(stabNum, setStatistics);
     } // function
+
 
     /*  @brief Performs a step using a given boost stepper; returns the current time and the new state if successful
     *   @param[in] stepper Boost::odeint::numeric object corresponding to a controlled stepper
@@ -461,7 +489,7 @@ namespace ACROBAT
     *  @returns Status code corresponding to the behaviour of the trajectory
     */
     template <typename pointType, typename doubleType, typename integerType>
-    int getStatus(Point<pointType>& point, const doubleType& initTime, const integerType& direction)
+    int getStatus(Point<pointType>& point, const doubleType& initTime, const integerType& direction, std::vector<double>& pointAtCrossing)
     {
         // Initialise the stepper to be used
         typedef std::vector<double> stateType;
@@ -496,6 +524,15 @@ namespace ACROBAT
 
             /* Call the integrator observer function */
             status = integrationController(x, x0, currentTime, prevCondOne);
+        }
+        // Obtain the exact point of the zero if status == 3
+        if (status == 3)
+        {
+            obtainZero(x0, x, currentTime);
+            pointAtCrossing = x;
+        } else 
+        {
+            pointAtCrossing = x;
         }
         return status; // Return status when it doesn't correspond to 'keep going'
     }
