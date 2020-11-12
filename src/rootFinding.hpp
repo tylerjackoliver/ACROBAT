@@ -113,8 +113,8 @@ void obtainZero(std::vector<double>& x0, std::vector<double>& xGuess, double& t0
 
     // Now we know we're bracketing the root. Start an interval bisection
     time_type lower, upper, mid;
-    lower = currentTime.first;
-    upper = currentTime.second;
+    lower = std::min(currentTime.first, currentTime.second);
+    upper = std::max(currentTime.first, currentTime.second);
     const int maxIterations = 100;                                                              // Guards against stale while loop
     int numberOfIterations = 0;
 
@@ -123,6 +123,7 @@ void obtainZero(std::vector<double>& x0, std::vector<double>& xGuess, double& t0
         mid = lower + (upper - lower) / 2.;                                                     // Interval bisection - compute midpoint
         std::vector<double> state(6);
         stepper.calc_state(mid, state);                                                         // Extract state at the midpoint
+        conditionOne = getConditionOne(state, x0);
         
         if ( fabs(conditionOne) < tol)                                                          // We've found the root
         {
@@ -137,12 +138,11 @@ void obtainZero(std::vector<double>& x0, std::vector<double>& xGuess, double& t0
         {
             upper = mid;
         }
-        numberOfIterations++;                                                                   // Increment counter
+        numberOfIterations++;                                                                // Increment counter
     }
     if (numberOfIterations == maxIterations)
     {
         t0Guess = -1;                                                 // Signal failure
     }
 }
-
 #endif

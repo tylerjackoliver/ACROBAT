@@ -121,9 +121,11 @@ namespace ACROBAT
                     if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
                     {
                         Point<int> thisPoint; thisPoint[0] = idx1; thisPoint[1] = idx2;
-                        Point<double> toInsert(stateAtCrossing);
+                        std::vector<double> stateToInsert;
+                        getDimState(stateAtCrossing, stateToInsert);
+                        Point<double> pointToInsert(stateToInsert);
                         privatePoints.insert(privatePoints.end(), thisPoint);
-                        privateCoordinates.insert(privateCoordinates.end(), toInsert);
+                        privateCoordinates.insert(privateCoordinates.end(), pointToInsert);
                     }
                     prog += poolSize;
                     if (rank == 0) std::cout << "Completed integration " << prog << " of " << domain.size() << "." << std::endl;
@@ -157,11 +159,11 @@ namespace ACROBAT
                 outIndices[1] = points;
                 initConds[1] = initialConditions;
                 // Get the backwards set
-                //points.clear();
-                //initialConditions.clear();
-                //getSet(-1, *this, points, initialConditions);
-                //outIndices[-1] = points;
-                //initConds[-1] = initialConditions;
+                // points.clear();
+                // initialConditions.clear();
+                // getSet(-1, *this, points, initialConditions);
+                // outIndices[-1] = points;
+                // initConds[-1] = initialConditions;
                 // Now get the rest 
                 for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
                 {
@@ -169,8 +171,6 @@ namespace ACROBAT
                     points.clear();
                     initialConditions.clear();
                     initialConditions = initConds[revs-1];
-                    std::cout << initialConditions[0];
-                    std::cout << std::endl;
                     getSetFromPoints(revs, outIndices[revs-1], *this, points, initialConditions);
                     outIndices[revs] = points;
                     initConds[revs] = initialConditions;
@@ -434,7 +434,9 @@ namespace ACROBAT
                 if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
                 {
                     Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
-                    Point<double> coordinateToAdd(stateAtCrossing);
+                    std::vector<double> dimensionalisedStateAtCrossing;
+                    getDimState(stateAtCrossing, dimensionalisedStateAtCrossing);
+                    Point<double> coordinateToAdd(dimensionalisedStateAtCrossing);
                     privatePoints.insert(privatePoints.end(), thisPoint);
                     privateCoordinates.insert(privateCoordinates.end(), coordinateToAdd);
                 }
@@ -443,15 +445,10 @@ namespace ACROBAT
             if (rank == 0) std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
         }
         // Now every worker has completed their chunk, their results must all be sent to the rank 0 processor
-        std::cout << "Rank " << rank << " reducing one..." << std::endl;
         reduceVector(privatePoints, pointIndices, rank, poolSize);
-        std::cout << "Rank " << rank << " reducing two..." << std::endl;
         reduceVector(privateCoordinates, pointCoordinates, rank, poolSize);
-        std::cout << "Rank " << rank << " broadcasting one..." << std::endl;
         broadcastVector(pointIndices, rank);
-        std::cout << "Rank " << rank << " broadcasting two..." << std::endl;
         broadcastVector(pointCoordinates, rank);
-        std::cout << "done." << std::endl;
         for (unsigned i = 0; i < setStatistics.size(); ++i)
         {
             reduceCount(setStatistics[i], setStatistics[i]); // Send from all cores to receive at master

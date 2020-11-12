@@ -276,7 +276,10 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
 
     // First check for a crash - note regularised dynamics
     double rMag = r.norm();
-    if (rMag <= 1) return 1;    // Premature exit to prevent computing unnecessary branches
+    if (rMag <= 1)
+    {
+        return 1;    // Premature exit to prevent computing unnecessary branches
+    }
 
     // Next, check for an escape
     double vMag = v.norm();
@@ -293,6 +296,10 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
 
     double conditionTwo = r.dot(r0);
     double conditionThree = v.dot(v0) * v0.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
+    if ( signChange )
+    {
+        // std::cout << "Sign change " << signChange << " condTwo " << conditionTwo << " conditionThree " << conditionThree << std::endl;
+    }
 
     if ( signChange && conditionTwo > 0 && conditionThree > 0) return 3;
 

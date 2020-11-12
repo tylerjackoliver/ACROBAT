@@ -59,7 +59,7 @@ namespace RADEC
 
     void getAlphaDelta(const double& epoch, double& alpha, double& delta)
     {
-        marsRADEC(epoch, alpha, delta);
+        mercuryRADEC(epoch, alpha, delta);
     }
 }
 #endif
