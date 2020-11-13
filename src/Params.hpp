@@ -15,9 +15,9 @@ namespace PARAMS
     /* Inclination of the ballistic capture plane */
     const double INC   = 45*std::atan(1.0)*4.0 / 180.;
     /* Longitude of the ballistic capture orbit */
-    const double LONGTD= 3 * std::atan(1.0);
+    const double LONGTD= 3 * 4.0 * std::atan(1.0) / 4.0;
     /* Epoch of the transfer */
-    const double EPOCH = 634694400;
+    const double EPOCH = 634780800;
     /* Common identifier or SPK ID of the TARGET */
     std::string TARGET="Mercury";
     /* Common identifier or SPK ID of the HOST */

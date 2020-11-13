@@ -159,11 +159,11 @@ namespace ACROBAT
                 outIndices[1] = points;
                 initConds[1] = initialConditions;
                 // Get the backwards set
-                // points.clear();
-                // initialConditions.clear();
-                // getSet(-1, *this, points, initialConditions);
-                // outIndices[-1] = points;
-                // initConds[-1] = initialConditions;
+                points.clear();
+                initialConditions.clear();
+                getSet(-1, *this, points, initialConditions);
+                outIndices[-1] = points;
+                initConds[-1] = initialConditions;
                 // Now get the rest 
                 for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
                 {
@@ -202,6 +202,40 @@ namespace ACROBAT
                         idx1 = val.state[0];
                         idx2 = val.state[1];
                         Point<double> initialCondition = this->getValue(idx1, idx2);
+                        double x = initialCondition.state[0];
+                        double y = initialCondition.state[1];
+                        double z = initialCondition.state[2];
+                        output << x << "," << y << "," << z << std::endl;
+                    }
+                }
+                output.close();
+            }
+
+            /* @brief Writes the results of the set generation to an output file
+               @param[in] stabNumber The number of revolutions a particle must complete.
+               @param[in] map Map of Point<int> indexed by the number of revolutions
+            */
+            void outputWriteBMEFrame(int& stabNumber, std::unordered_map<int, std::vector<Point<int>>>& map, ACROBAT::bmeField<Point<double>>& field)
+            {
+                // Define n=-1 set
+                std::vector<Point<int>> backwardsSet = map[-1];
+                // Define the n-th set
+                std::vector<Point<int>> nthSet = map[stabNumber];
+
+                // Open output file
+                std::string fname = "BMEField_stableSet_n=" + std::to_string(stabNumber);
+                std::ofstream output;
+                output.open(fname);
+
+                // The final set is those in nthSet that are also in backwardsSet
+                for(auto val : nthSet)
+                {
+                    if (std::find(backwardsSet.begin(), backwardsSet.end(), val) != backwardsSet.end()) // val is in backwardsSet
+                    {
+                        int idx1, idx2;
+                        idx1 = val.state[0];
+                        idx2 = val.state[1];
+                        Point<double> initialCondition = field.getValue(idx1, idx2);
                         double x = initialCondition.state[0];
                         double y = initialCondition.state[1];
                         double z = initialCondition.state[2];
