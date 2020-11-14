@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include "laguerreConway.hpp"
 #include <cmath>
+#include <string>
 
 extern "C"
 {
@@ -149,12 +150,12 @@ void getSunVector(Eigen::Matrix<Type, 3, 1> &r, const Type t)
     r = scalar * rotationVector;
 }
 
-/* @brief Get the vector to the Sun from the orbital ephemerides
+/* @brief Get the vector to a given planet from the orbital ephemerides
    @param[in] t Dimensional time at which the vector is sought
    @param[inout] r Normalised position vector between the TARGET and the HOST
 */
 template <typename Type>
-void getSunVectorEphemeris(Eigen::Matrix<Type, 3, 1> &r, const Type t)
+void getPlanetVectorEphemeris(std::string& targ, Eigen::Matrix<Type, 3, 1> &r, const Type t)
 {
     ConstSpiceChar abcorr[] = "NONE";
     
@@ -163,7 +164,7 @@ void getSunVectorEphemeris(Eigen::Matrix<Type, 3, 1> &r, const Type t)
     SpiceDouble lt = 0.0;
 
     // Get state
-    spkpos_c(PARAMS::HOST.c_str(), et, "J2000", abcorr, PARAMS::TARGET.c_str(), state, &lt);
+    spkpos_c(targ.c_str(), et, "J2000", abcorr, PARAMS::TARGET.c_str(), state, &lt);
 
     for (size_t idx = 0; idx < 3; ++idx) r(idx) = state[idx] / PARAMS::R; // Copy position into output vector, normalised
 }
@@ -235,13 +236,25 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
     double dimensionalTime = getDimensionalTime(t);
     double currentTime = PARAMS::EPOCH + dimensionalTime; // t is measured in seconds
 
-    getSunVectorEphemeris(sunVector, currentTime);
+    getPlanetVectorEphemeris(PARAMS::HOST, sunVector, currentTime);
     Eigen::Matrix<double, 3, 1> posDifference = positionVector - sunVector;
 
     double normalHostGM = PARAMS::hostGM / PARAMS::targetGM; // Normalise
     double normalTargetGM = 1.0;
 
     solarTerm = normalHostGM * (sunVector / ( std::pow(sunVector.norm(), 3) ) + ( posDifference / ( std::pow(posDifference.norm(), 3) ) ));
+    
+    /* Add on any additional perturbing bodies */
+    for (size_t idx = 0; idx < PARAMS::additionalPlanets.size(); ++idx)
+    {
+        double tmpNormalGM = PARAMS::additionalPlanetsGM[idx] / PARAMS::targetGM;
+        Eigen::Matrix<double, 3, 1> planetVector, planetParticleDifference;
+        // Get vector to the planet
+        getPlanetVectorEphemeris(PARAMS::additionalPlanets[idx], planetVector, currentTime);
+        planetParticleDifference = positionVector - planetVector;
+        solarTerm += tmpNormalGM * ( (planetVector / std::pow(planetVector.norm(), 3) ) + ( planetParticleDifference / std::pow(planetParticleDifference.norm(), 3)) );
+    }
+    
     velocityVector = -normalTargetGM * positionVector / ( std::pow(positionVector.norm(), 3) ) - solarTerm;
 
     for (size_t i = 0; i < 3; ++i) dx[i+3] = velocityVector(i);
@@ -256,22 +269,24 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
 
     Integer Return Codes
     ~~~~~~~~~~~~~~~~~~~~
-    0: Do nothing!
+    0: Do nothing!  
     1: Trajectory has crashed (R < Rmin)
     2: Trajectory has escaped (R > Rs)
     3: Trajectory is weakly stable (wacky geometrics)
     4: Trajectory is acrobatic (nothing happens!)
 */
 // template <typename Type>
-int integrationController(std::vector<double> &x, std::vector<double>& x0, const double t, double & prevCondOne)
+int integrationController(std::vector<double> &x, std::vector<double>& xkm1, std::vector<double>& x0, const double t, double & prevCondOne)
 {
-    Eigen::Matrix<double, 3, 1> r, r0, v0, v;
+    Eigen::Matrix<double, 3, 1> r, r0, v0, v, rkm1, vkm1;
     for (size_t idx = 0; idx < 3; ++idx)
     {
         r(idx) = x[idx];
         r0(idx) = x0[idx];
         v(idx) = x[idx+3];
         v0(idx) = x0[idx+3];
+        rkm1(idx) = xkm1[idx];
+        vkm1(idx) = xkm1[idx+3];
     }
 
     // First check for a crash - note regularised dynamics
@@ -284,6 +299,7 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
     // Next, check for an escape
     double vMag = v.norm();
     double keplerEnergy = (vMag * vMag / 2. - 1./rMag);
+    std::cout << "rMag: " << rMag << " kepler energy " << keplerEnergy << std::endl;
     if (rMag > PARAMS::RS/PARAMS::R && keplerEnergy > 0) 
     {
         return 2;
@@ -295,11 +311,7 @@ int integrationController(std::vector<double> &x, std::vector<double>& x0, const
     bool signChange = std::signbit(conditionOne * prevCondOne); // Returns True if negative
 
     double conditionTwo = r.dot(r0);
-    double conditionThree = v.dot(v0) * v0.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
-    if ( signChange )
-    {
-        // std::cout << "Sign change " << signChange << " condTwo " << conditionTwo << " conditionThree " << conditionThree << std::endl;
-    }
+    double conditionThree = v.dot(v0) * vkm1.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
 
     if ( signChange && conditionTwo > 0 && conditionThree > 0) return 3;
 

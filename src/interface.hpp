@@ -59,6 +59,15 @@ void initialiseParams()
     /* Get GM for the HOST and TARGET planets */
     bodvrd_c(PARAMS::TARGET.c_str(), "GM", 1, &itemsReturned, &PARAMS::targetGM); // (body, value, max items returned, actual items returned, where to store)
     bodvrd_c(PARAMS::HOST.c_str(), "GM", 1, &itemsReturned, &PARAMS::hostGM);
+    
+    /* Get the GM for any additional planets */
+    for (size_t idx = 0; idx < PARAMS::additionalPlanets.size(); ++idx)
+    {
+        double temporaryGM;
+        bodvrd_c(PARAMS::additionalPlanets[idx].c_str(), "GM", 1, &itemsReturned, &temporaryGM);
+        PARAMS::additionalPlanetsGM.insert(PARAMS::additionalPlanetsGM.end(), temporaryGM);
+        PARAMS::additionalPlanets[idx] += "_BARYCENTER";
+    }
 
     /* Get the radii for the TARGET planet */
     bodvrd_c(PARAMS::TARGET.c_str(), "RADII", 3, &itemsReturned, targetRadii);
