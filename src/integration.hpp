@@ -169,6 +169,61 @@ void getPlanetVectorEphemeris(std::string& targ, Eigen::Matrix<Type, 3, 1> &r, c
     for (size_t idx = 0; idx < 3; ++idx) r(idx) = state[idx] / PARAMS::R; // Copy position into output vector, normalised
 }
 
+/* @brief Get a dimensional version of the vector to a given planet from the orbital ephemerides
+   @param[in] t Dimensional time at which the vector is sought
+   @param[inout] r Normalised position vector between the TARGET and the HOST
+*/
+template <typename Type>
+void getDimensionalPlanetVectorEphemeris(std::string& targ, Eigen::Matrix<Type, 3, 1> &r, const Type t)
+{
+    ConstSpiceChar abcorr[] = "NONE";
+    
+    SpiceDouble state[3];
+    SpiceDouble et = t;
+    SpiceDouble lt = 0.0;
+
+    // Get state
+    spkpos_c(targ.c_str(), et, "J2000", abcorr, PARAMS::TARGET.c_str(), state, &lt);
+
+    for (size_t idx = 0; idx < 3; ++idx) r(idx) = state[idx]; // Copy position into output vector, normalised
+}
+
+/* @brief Get the dimensional state of a given planet, measured from the target
+ * @param[in] targ A std::string containing the planet for which to get the vector to
+ * @param[inout] r Normalised vector between the target and the host
+ */
+template <typename Type>
+void getDimensionalPlanetState(std::string& targ, Eigen::Matrix<Type, 6, 1> &r, const Type t)
+{
+    ConstSpiceChar abcorr[] = "NONE";
+    SpiceDouble state[6];
+    SpiceDouble lt = 0.0;
+    SpiceDouble et = t;
+
+    // Get the state
+    spkezr_c(targ.c_str(), et, "J2000", abcorr, PARAMS::TARGET.c_str(), state, &lt);
+
+    for (size_t idx = 0; idx < 6; ++idx) r(idx) = state[idx];
+}
+
+/* @brief Get the dimensional velocity of a given planet, measured from the target
+ * @param[in] targ A std::string containing the planet for which to get the vector to
+ * @param[inout] r Normalised vector between the target and the host
+ */
+template <typename Type>
+void getDimensionalPlanetVelocity(std::string& targ, Eigen::Matrix<Type, 3, 1>& r, const Type t)
+{
+    ConstSpiceChar abcorr[] = "NONE";
+    SpiceDouble state[6];
+    SpiceDouble lt = 0.0;
+    SpiceDouble et = t;
+
+    // Get the state
+    spkezr_c(targ.c_str(), et, "J2000", abcorr, PARAMS::TARGET.c_str(), state, &lt);
+
+    for (size_t idx = 0; idx < 3; ++idx) r(idx) = state[idx + 3];
+}
+
 /* @brief C++ wrapper to the SPICE orbital element routines.
  * @param[in] t: Time (ephemeris seconds) at which the orbital elements are required.
  * @param[in] body: String identifying the body the orbital elements are sought for.
@@ -260,6 +315,96 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
     for (size_t i = 0; i < 3; ++i) dx[i+3] = velocityVector(i);
 }
 
+
+/* @brief Test version of the force function using a fully dimensionalised state
+*/
+void dimensionalForceFunction(const std::vector<double> &x, std::vector<double> &dx, const double t)
+{
+    Eigen::Matrix<double, 3, 1> sunVector, positionVector, velocityVector, solarTerm;
+
+    // First, the trivial derivatives
+    for (size_t idx = 0; idx < 3; ++idx)        // Unrolls for -O2+
+    {
+        positionVector(idx) = x[idx];
+        dx[idx] = x[idx+3];
+    }
+
+    // Get current integration time
+    double currentTime = PARAMS::EPOCH + t; // EPOCH of the study (seconds) + the integration time so far (seconds)
+
+    // Get Mercury -> Sun vector
+    getDimensionalPlanetVectorEphemeris(PARAMS::HOST, sunVector, currentTime);  // Get ephemeris position from target planet (Mercury) to host planet (Sun)
+    // Eigen::Matrix<double, 3, 1> posDifference = positionVector - sunVector;     // Position vector between spacecraft and Sun
+    Eigen::Matrix<double, 3, 1> posDifference = sunVector - positionVector;
+
+    // Compute solar contributions -> mu * [ (rSun / rSun^3) + ( rSatellite - rSun ) / (rSatellite - rSun) ^ 3 ]
+    solarTerm = PARAMS::hostGM * (sunVector / ( std::pow(sunVector.norm(), 3) ) + ( posDifference / ( std::pow(posDifference.norm(), 3) ) ));
+    
+    // Add on additional perturbing bodies
+    for (size_t idx = 0; idx < PARAMS::additionalPlanets.size(); ++idx)     // PARAMS::additionalPlanets contains std::strings of other planets to consider
+    {
+        double tmpNormalGM = PARAMS::additionalPlanetsGM[idx];              // GM of the other target planet (computed via ephemeris). Normally normalised but not here
+        Eigen::Matrix<double, 3, 1> planetVector, planetParticleDifference; // Holding vectors for Mercury <=> Planet vector and (Mercury - Planet) vector
+        // Get vector to the planet
+        getDimensionalPlanetVectorEphemeris(PARAMS::additionalPlanets[idx], planetVector, currentTime);     // Position vector from host (Mercury) -> Planet
+        planetParticleDifference = positionVector - planetVector;                                           // Position vector rSatellite - rPlanet
+        // Add this contribution to the overall force on the body
+        solarTerm += tmpNormalGM * ( (planetVector / std::pow(planetVector.norm(), 3) ) + ( planetParticleDifference / std::pow(planetParticleDifference.norm(), 3)) );
+    }
+
+    /* Get the kinetic energy of the system */
+    // Get masses of target and host
+    const double G = 6.6743015e-011;
+    double massTarget = PARAMS::targetGM * 1000 / G;
+    double massHost = PARAMS::hostGM * 1000 / G;
+
+    double T = 0.0;
+    double V = 0.0;
+    double energy = 0.0;
+
+    // Add sun kinetic energy
+    Eigen::Matrix<double, 3, 1> sunVelocity;
+    getDimensionalPlanetVelocity(PARAMS::TARGET, sunVelocity, currentTime);
+
+    energy += 0.5 * sunVelocity.norm() * massHost - G / 2.0 * massTarget * massHost / ( sunVector.norm() );
+    std::cout << energy << std::endl;
+    
+    // Compute overall derivative (ignore naming!)
+    velocityVector = -PARAMS::targetGM * positionVector / ( std::pow(positionVector.norm(), 3) ) + PARAMS::hostGM * ( (posDifference) / (std::pow(posDifference.norm(), 3)) - sunVector / std::pow(sunVector.norm(), 3)  );
+
+    for (size_t idx = 0; idx < 3; ++idx) dx[idx+3] = velocityVector(idx);     // Reassign
+}
+
+void nbody(const std::vector<double> &x, std::vector<double> &dx, const double t)
+{
+    std::vector<double> spacecraftPos(3), sunPos(3), mercuryPos(3), spacecraftSunVector(3);
+    double spacecraftPosNorm = 0;
+    double sunPosNorm = 0;
+    double spacecraftSunVectorNorm = 0;
+    for (size_t idx = 0; idx < x.size(); ++idx)
+    {
+        spacecraftPos[idx] = x[idx];
+        spacecraftPosNorm += x[idx] * x[idx];
+        sunPos[idx] = x[idx+3];
+        sunPosNorm += sunPos[idx] * sunPos[idx];
+        spacecraftSunVector[idx] = spacecraftPos[idx] - sunPos[idx];
+        spacecraftSunVectorNorm += spacecraftSunVector[idx] * spacecraftSunVector[idx];
+    }
+
+    spacecraftPosNorm = std::pow( std::sqrt(spacecraftPosNorm), 3);
+    sunPosNorm = std::pow( std::sqrt(sunPosNorm), 3);
+    spacecraftSunVectorNorm = std::pow( std::sqrt(sunPosNorm), 3);
+
+    // EoM for the s/c about Mercury
+    for (size_t idx = 0; idx < 3; ++idx)
+    {
+        dx[idx] =  -PARAMS::targetGM * (spacecraftPos[idx] / spacecraftPosNorm) - PARAMS::hostGM * (spacecraftSunVector[idx] / spacecraftSunVectorNorm + sunPos[idx] / sunPosNorm);
+        dx[idx+3] = PARAMS::targetGM;
+    }
+
+
+}
+
 /* @brief Custom integration observer function; returns various status integers depending on whether stopping conditions have been triggered.
    @param[in] x Eigen::Matrix<Type, 6> containing the state vector of the particle at the given point.
    @param[in] x0 Eigen::Matrix<Type, 6> containing the initial position of the particle on the given trajectory
@@ -291,7 +436,7 @@ int integrationController(std::vector<double> &x, std::vector<double>& xkm1, std
 
     // First check for a crash - note regularised dynamics
     double rMag = r.norm();
-    if (rMag <= 1)
+    if (rMag <= PARAMS::R)
     {
         return 1;    // Premature exit to prevent computing unnecessary branches
     }
@@ -299,8 +444,8 @@ int integrationController(std::vector<double> &x, std::vector<double>& xkm1, std
     // Next, check for an escape
     double vMag = v.norm();
     double keplerEnergy = (vMag * vMag / 2. - 1./rMag);
-    std::cout << "rMag: " << rMag << " kepler energy " << keplerEnergy << std::endl;
-    if (rMag > PARAMS::RS/PARAMS::R && keplerEnergy > 0) 
+
+    if (rMag > PARAMS::RS && keplerEnergy > 0) 
     {
         return 2;
     }

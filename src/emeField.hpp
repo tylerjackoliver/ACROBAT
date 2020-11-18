@@ -111,10 +111,11 @@ namespace ACROBAT
                     int idx1 = indices.state[0];
                     int idx2 = indices.state[1];
                     Point<double> currentPoint = initialConditions[i];
+                    Point<double> originalPoint = field.getValue(idx1, idx2);
                     std::vector<double> stateAtCrossing(6);
 
                     // Get the status of this points behaviour
-                    int status = getStatus(currentPoint, field.getInitialTime(), directionTime, stateAtCrossing);
+                    int status = getStatus(currentPoint, originalPoint, field.getInitialTime(), directionTime, stateAtCrossing);
                     // Increment the correct counter in the setStatistics vector (ordered s.t. index is status-1)
                     setStatistics[status-1]++;
                     // If weakly stable, append its indices to the points vector
@@ -459,10 +460,10 @@ namespace ACROBAT
                 // Get current point
                 Point<double> currentPoint = field.getValue(i, j);
                 std::vector<double> stateAtCrossing(6);
- 
+                Point<double> originalPosition = field.getValue(i,j);
                 
                 // Get the status of this points behaviour
-                int status = getStatus(currentPoint, field.getInitialTime(), directionTime, stateAtCrossing);
+                int status = getStatus(currentPoint, originalPosition, field.getInitialTime(), directionTime, stateAtCrossing);
                 setStatistics[status-1]++;
                 // If weakly stable, append its indices to the points vector
                 if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
@@ -513,6 +514,30 @@ namespace ACROBAT
         }
     }
 
+    /* @brief Test getStatus function
+    */
+    int getStatusTest(Point<double> &point, const double& initTime)
+    {
+        typedef std::vector<double> stateType;
+        boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
+        auto stepper = boost::numeric::odeint::make_controlled(1e-012, 1e-012, method);
+        std::ofstream output;
+        output.open("harmonicTest.out");
+        double currentTime = 0.0;
+        std::vector<double> x(2);
+        x[0] = point.state[0];
+        x[1] = point.state[1];
+        double dt = 0.01;
+
+        while (currentTime < 10)
+        {
+            make_step(stepper, x, currentTime, dt);
+            output << x[0] << std::endl;
+        }
+        output.close();
+        return 1;
+    }
+
     /* @brief Computes whether a given point is acrobatic, weakly stable, crashes, or escapes.
     *  @param[in] point The initial conditions (in a Point<> structure) to be tested
     *  @param[in] initTime The initial time for the integration of the trajectory
@@ -520,24 +545,25 @@ namespace ACROBAT
     *  @returns Status code corresponding to the behaviour of the trajectory
     */
     template <typename pointType, typename doubleType, typename integerType>
-    int getStatus(Point<pointType>& point, const doubleType& initTime, const integerType& direction, std::vector<double>& pointAtCrossing)
+    int getStatus(Point<pointType>& point, Point<pointType>& originalPosition, const doubleType& initTime, const integerType& direction, std::vector<double>& pointAtCrossing)
     {
         // Initialise the stepper to be used
         typedef std::vector<double> stateType;
         boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
         auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
-
         // Fill an initial condition vector and normalize on entry
-        stateType x0Dim(6), xDim(6), x0, x;
+        stateType x0Dim(6), xDim(6), xOrig(6), x0, x, xOrigNonDim;
         for (unsigned idx = 0; idx < 6; ++idx) 
         {
             x0Dim[idx] = point[idx];
             xDim[idx] = point[idx];
+            xOrig[idx] = originalPosition[idx];
         }
 
         // Normalise
         getNonDimState(x0Dim, x0);
         getNonDimState(xDim, x);
+        getNonDimState(xOrig, xOrigNonDim);
 
         // Initialise current time
         double currentTime = initTime;
@@ -554,7 +580,7 @@ namespace ACROBAT
             make_step(stepper, x, currentTime, dt);
 
             /* Call the integrator observer function */
-            status = integrationController(x, x0, currentTime, prevCondOne);
+            status = integrationController(x, xOrigNonDim, x0, currentTime, prevCondOne);
         }
         // Obtain the exact point of the zero if status == 3
         if (status == 3)
