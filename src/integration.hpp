@@ -298,7 +298,7 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
     double normalTargetGM = 1.0;
 
     solarTerm = normalHostGM * (sunVector / ( std::pow(sunVector.norm(), 3) ) + ( posDifference / ( std::pow(posDifference.norm(), 3) ) ));
-    
+    velocityVector = -normalTargetGM * positionVector / ( std::pow(positionVector.norm(), 3) );
     /* Add on any additional perturbing bodies */
     for (size_t idx = 0; idx < PARAMS::additionalPlanets.size(); ++idx)
     {
@@ -310,8 +310,7 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
         solarTerm += tmpNormalGM * ( (planetVector / std::pow(planetVector.norm(), 3) ) + ( planetParticleDifference / std::pow(planetParticleDifference.norm(), 3)) );
     }
     
-    velocityVector = -normalTargetGM * positionVector / ( std::pow(positionVector.norm(), 3) ) - solarTerm;
-
+    velocityVector -= solarTerm;
     for (size_t i = 0; i < 3; ++i) dx[i+3] = velocityVector(i);
 }
 
@@ -436,7 +435,7 @@ int integrationController(std::vector<double> &x, std::vector<double>& xkm1, std
 
     // First check for a crash - note regularised dynamics
     double rMag = r.norm();
-    if (rMag <= PARAMS::R)
+    if (rMag <= 1)
     {
         return 1;    // Premature exit to prevent computing unnecessary branches
     }
@@ -445,7 +444,7 @@ int integrationController(std::vector<double> &x, std::vector<double>& xkm1, std
     double vMag = v.norm();
     double keplerEnergy = (vMag * vMag / 2. - 1./rMag);
 
-    if (rMag > PARAMS::RS && keplerEnergy > 0) 
+    if (rMag > PARAMS::RS/PARAMS::R && keplerEnergy > 0) 
     {
         return 2;
     }

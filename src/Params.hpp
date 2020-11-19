@@ -19,7 +19,7 @@ namespace PARAMS
     /* Longitude of the ballistic capture orbit */
     const double LONGTD= 202.5 * 4.0 * std::atan(1.0) / 180.;
     /* Epoch of the transfer */
-    const double EPOCH = 634780800;
+    const double EPOCH = 634798080;
     /* Common identifier or SPK ID of the TARGET */
     std::string TARGET="Mercury";
     /* Common identifier or SPK ID of the HOST */

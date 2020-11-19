@@ -532,7 +532,6 @@ namespace ACROBAT
         while (currentTime < 10)
         {
             make_step(stepper, x, currentTime, dt);
-            output << x[0] << std::endl;
         }
         output.close();
         return 1;
@@ -574,11 +573,10 @@ namespace ACROBAT
         // Initialiser for the previous value of condition one
         double prevCondOne = 1.0 * direction;
 
-        while (status == 0) // While none of the stopping conditions have been verified
+        while ( status == 0 ) // While none of the stopping conditions have been verified
         {
             /* Make a step using the given solver & force function */
             make_step(stepper, x, currentTime, dt);
-
             /* Call the integrator observer function */
             status = integrationController(x, xOrigNonDim, x0, currentTime, prevCondOne);
         }
