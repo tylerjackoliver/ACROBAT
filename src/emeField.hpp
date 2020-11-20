@@ -573,7 +573,8 @@ namespace ACROBAT
         // Initialiser for the previous value of condition one
         double prevCondOne = 1.0 * direction;
 
-        while ( status == 0 ) // While none of the stopping conditions have been verified
+        // while ( (direction > 0  && status == 0) || (direction < 0 && (status == 3 || status == 0))) // While none of the stopping conditions have been verified
+        while (status == 0)
         {
             /* Make a step using the given solver & force function */
             make_step(stepper, x, currentTime, dt);
@@ -581,7 +582,7 @@ namespace ACROBAT
             status = integrationController(x, xOrigNonDim, x0, currentTime, prevCondOne);
         }
         // Obtain the exact point of the zero if status == 3
-        if (status == 3)
+        if (status == 3 && direction > 0)
         {
             obtainZero(x0, x, currentTime);
             pointAtCrossing = x;
