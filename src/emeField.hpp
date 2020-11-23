@@ -152,30 +152,20 @@ namespace ACROBAT
             template <typename integerType, typename pointType>
             void getStableSet(integerType stabNumber, std::unordered_map<int, std::vector<Point<pointType>>>& outIndices)
             {
-                std::unordered_map<int, std::vector<Point<double>>> initConds;
-                std::vector<Point<pointType>> points;
-                std::vector<Point<double>> initialConditions;
-                // Get the set defined solely from the initial domain (i.e. 1-stable)
-                getSet(1, *this, points, initialConditions);
-                outIndices[1] = points;
-                initConds[1] = initialConditions;
-                // Get the backwards set
-                points.clear();
-                initialConditions.clear();
-                getSet(-1, *this, points, initialConditions);
-                outIndices[-1] = points;
-                initConds[-1] = initialConditions;
-                // Now get the rest 
-                for (unsigned revs = 2; revs <= stabNumber; ++revs)  // Must complete at least one orbit about the host planet
+                int mpiCode;
+                int rank, size;
+                mpiCode = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+                mpiCode = MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+                for (unsigned i = rank; i < this->getXExtent(); i += size)
                 {
-                    // Clear points from the previous run
-                    points.clear();
-                    initialConditions.clear();
-                    initialConditions = initConds[revs-1];
-                    getSetFromPoints(revs, outIndices[revs-1], *this, points, initialConditions);
-                    outIndices[revs] = points;
-                    initConds[revs] = initialConditions;
+                    for (unsigned j = 0; j < this->getYExtent(); ++j)
+                    {
+                        getStatus(stabNumber, outIndices, i, j, *this);
                 }
+                    if (rank == 0) std::cout << "Completed operation " << (i+1)*this->getYExtent() << " of " << this->getXExtent() * this->getYExtent() << std::endl;
+            }
+                broadcastMap(stabNumber, outIndices);
             }
 
             /* @brief Writes the results of the set generation to an output file
@@ -543,20 +533,19 @@ namespace ACROBAT
     *  @param[in] direction The direction for the timespan of the integration (+1/-1)
     *  @returns Status code corresponding to the behaviour of the trajectory
     */
-    template <typename pointType, typename doubleType, typename integerType>
-    int getStatus(Point<pointType>& point, Point<pointType>& originalPosition, const doubleType& initTime, const integerType& direction, std::vector<double>& pointAtCrossing)
+    template <typename pointType>
+    void getStatus(unsigned int n, std::unordered_map<int, std::vector<Point<pointType>>>& map, int i, int j, ACROBAT::emeField<Point<double>>& eme)
     {
         // Initialise the stepper to be used
         typedef std::vector<double> stateType;
-        boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
         // Fill an initial condition vector and normalize on entry
         stateType x0Dim(6), xDim(6), xOrig(6), x0, x, xOrigNonDim;
+        Point<double> thisPoint = eme.getValue(i, j);
         for (unsigned idx = 0; idx < 6; ++idx) 
         {
-            x0Dim[idx] = point[idx];
-            xDim[idx] = point[idx];
-            xOrig[idx] = originalPosition[idx];
+            x0Dim[idx] = thisPoint.state[idx];
+            xDim[idx] = thisPoint.state[idx];
+            xOrig[idx] = thisPoint.state[idx];
         }
 
         // Normalise
@@ -564,16 +553,21 @@ namespace ACROBAT
         getNonDimState(xDim, x);
         getNonDimState(xOrig, xOrigNonDim);
 
+        unsigned rev = 1;
         // Initialise current time
-        double currentTime = initTime;
-        double dt = 0.01 * direction;
+        double currentTime = 0.0;
+        double dt = 0.01;
 
+        while (rev <= n)
+        {
         // Integration status
         int status = 0;
         // Initialiser for the previous value of condition one
-        double prevCondOne = 1.0 * direction;
+            double prevCondOne = 1.0;
+            // Stepper
+            boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
+            auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
 
-        // while ( (direction > 0  && status == 0) || (direction < 0 && (status == 3 || status == 0))) // While none of the stopping conditions have been verified
         while (status == 0)
         {
             /* Make a step using the given solver & force function */
@@ -581,16 +575,63 @@ namespace ACROBAT
             /* Call the integrator observer function */
             status = integrationController(x, xOrigNonDim, x0, currentTime, prevCondOne);
         }
-        // Obtain the exact point of the zero if status == 3
-        if (status == 3 && direction > 0)
+            if (status != 3) // If didn't get a full revolution...
+            {
+                rev = 100;
+            } else
         {
             obtainZero(x0, x, currentTime);
-            pointAtCrossing = x;
-        } else 
-        {
-            pointAtCrossing = x;
+                Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
+                map[rev].push_back(tmp);
+            }
+            // Reset for the next run
+            xOrigNonDim = x;
+            rev++;
         }
-        return status; // Return status when it doesn't correspond to 'keep going'
+        /* Now do the backwards run */
+        int status = 0;
+        double prevCondOne = -1;
+        dt = -.01;
+        /* Reset the stepper */
+        boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
+        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
+        currentTime = 0.0;
+        x = x0;
+        while (status == 0)
+        {
+            /* Make a step using the given solver & force function */
+            make_step(stepper, x, currentTime, dt);
+            /* Call the integrator observer function */
+            status = integrationController(x, x0, x0, currentTime, prevCondOne);
+        }
+        if (status == 2) // Escape
+        {
+            Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
+            map[-1].push_back(tmp);
+        }
+    }
+
+    template <typename pointType>
+    void broadcastMap(unsigned int stabNum, std::unordered_map<int, std::vector<Point<pointType>>>&map)
+    {
+        int mpiReturn;
+        int rank, size;
+        mpiReturn = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        mpiReturn = MPI_Comm_size(MPI_COMM_WORLD, &size);
+        for (int revNumber = 1; revNumber <= stabNum; ++revNumber)
+        {
+            std::vector<Point<pointType>> thisValue = map[revNumber];
+            std::vector<Point<pointType>> toBroadcast;
+            reduceVector(thisValue, toBroadcast, rank, size);
+            broadcastVector(toBroadcast, rank);
+            map[revNumber] = toBroadcast;
+        }
+        int revNumber = -1;
+        std::vector<Point<pointType>> thisValue = map[revNumber];
+        std::vector<Point<pointType>> toBroadcast;
+        reduceVector(thisValue, toBroadcast, rank, size);
+        broadcastVector(toBroadcast, rank);
+        map[revNumber] = toBroadcast;
     }
 }
 #endif
