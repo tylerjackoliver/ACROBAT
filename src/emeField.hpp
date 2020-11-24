@@ -504,27 +504,88 @@ namespace ACROBAT
         }
     }
 
-    /* @brief Test getStatus function
+    /* @brief Computes whether a given point is acrobatic, weakly stable, crashes, or escapes.
+    *  @param[in] point The initial conditions (in a Point<> structure) to be tested
+    *  @param[in] initTime The initial time for the integration of the trajectory
+    *  @param[in] direction The direction for the timespan of the integration (+1/-1)
+    *  @returns Status code corresponding to the behaviour of the trajectory
     */
-    int getStatusTest(Point<double> &point, const double& initTime)
+    template <typename pointType>
+    void getStatus(unsigned int n, std::unordered_map<int, std::vector<Point<pointType>>>& map, int i, int j, ACROBAT::emeField<Point<double>>& eme)
     {
+        // Initialise the stepper to be used
         typedef std::vector<double> stateType;
-        boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-        auto stepper = boost::numeric::odeint::make_controlled(1e-012, 1e-012, method);
-        std::ofstream output;
-        output.open("harmonicTest.out");
+        // Fill an initial condition vector and normalize on entry
+        stateType x0Dim(6), xDim(6), xOrig(6), x0, x, xOrigNonDim;
+        Point<double> thisPoint = eme.getValue(i, j);
+        for (unsigned idx = 0; idx < 6; ++idx) 
+        {
+            x0Dim[idx] = thisPoint.state[idx];
+            xDim[idx] = thisPoint.state[idx];
+            xOrig[idx] = thisPoint.state[idx];
+        }
+
+        // Normalise
+        getNonDimState(x0Dim, x0);
+        getNonDimState(xDim, x);
+        getNonDimState(xOrig, xOrigNonDim);
+
+        unsigned rev = 1;
+        // Initialise current time
         double currentTime = 0.0;
-        std::vector<double> x(2);
-        x[0] = point.state[0];
-        x[1] = point.state[1];
         double dt = 0.01;
 
-        while (currentTime < 10)
+        while (rev <= n)
         {
-            make_step(stepper, x, currentTime, dt);
+            // Integration status
+            int status = 0;
+            // Initialiser for the previous value of condition one
+            double prevCondOne = 1.0;
+            // Stepper
+            boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
+            auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
+
+            while (status == 0)
+            {
+                /* Make a step using the given solver & force function */
+                make_step(stepper, x, currentTime, dt);
+                /* Call the integrator observer function */
+                status = integrationController(x, xOrigNonDim, x0, currentTime, prevCondOne);
+            }
+            if (status != 3) // If didn't get a full revolution...
+            {
+                rev = 100;
+            } else
+            {
+                obtainZero(x0, x, currentTime);
+                Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
+                map[rev].push_back(tmp);
+            }
+            // Reset for the next run
+            xOrigNonDim = x;
+            rev++;
         }
-        output.close();
-        return 1;
+        /* Now do the backwards run */
+        int status = 0;
+        double prevCondOne = -1;
+        dt = -.01;
+        /* Reset the stepper */
+        boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
+        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
+        currentTime = 0.0;
+        x = x0;
+        while (status == 0)
+        {
+            /* Make a step using the given solver & force function */
+            make_step(stepper, x, currentTime, dt);
+            /* Call the integrator observer function */
+            status = integrationController(x, x0, x0, currentTime, prevCondOne);
+        }
+        if (status == 2) // Escape
+        {
+            Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
+            map[-1].push_back(tmp);
+        }
     }
 
     /* @brief Computes whether a given point is acrobatic, weakly stable, crashes, or escapes.

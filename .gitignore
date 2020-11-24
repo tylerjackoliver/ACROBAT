@@ -44,3 +44,8 @@ lib/
 *.tpc
 *.bsp
 *.tls
+
+
+# Data/plots
+data/
+plots/
