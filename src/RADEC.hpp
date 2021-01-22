@@ -61,5 +61,12 @@ namespace RADEC
     {
         mercuryRADEC(epoch, alpha, delta);
     }
+
+    void alphaDeltaDerivatives(double& dAlpha, double &dDelta)
+    {
+    	// Mercury
+    	dAlpha = -.0328 * deg2rad;
+    	dDelta = -.0049 * deg2rad;
+    }
 }
 #endif
