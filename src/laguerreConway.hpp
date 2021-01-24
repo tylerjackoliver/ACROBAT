@@ -21,7 +21,7 @@ void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function 
     Type xi = E0;
     unsigned num_iters = 0;
 
-    while (tolerance >= eps && num_iters < 10) // Iteration should be within 4 iterations for majority of E, ecc
+    while ( std::abs(tolerance) >= eps && num_iters < 10) // Iteration should be within 4 iterations for majority of E, ecc
     {   
         // Pre-compute function evaluations and derivatives
         Type fval = f(xi, ecc, M);
@@ -34,9 +34,6 @@ void laguerreConway(Type &E0, Type &Ef, Type &ecc, Type &M, Type &eps, Function 
 
         // Denominator is such that absolute value is maximised
         Type denominator = std::max( fabs(deriv + root), fabs(deriv - root) );
-
-        // std::cout << "numerator " << numerator << std::endl;
-        // std::cout << "denominator " << denominator << std::endl;
 
         // Compute update to iterate
         Type delta_n1 = numerator / denominator;
