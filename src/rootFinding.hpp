@@ -1,5 +1,5 @@
-#ifndef __TOPS_748_H__
-#define __TOPS_748_H__
+#ifndef __ROOT_FINDING_H__
+#define __ROOT_FINDING_H__
 
 #include "integration.hpp"
 #include <boost/numeric/odeint/stepper/generation/make_controlled.hpp>
@@ -142,7 +142,7 @@ void obtainZero(std::vector<double>& x0, std::vector<double>& xGuess, double& t0
     }
     if (numberOfIterations == maxIterations)
     {
-        t0Guess = -1;                                                 // Signal failure
+        throw std::runtime_error("Maximum number of iterations exceeded in finding the root.");
     }
 }
 #endif
