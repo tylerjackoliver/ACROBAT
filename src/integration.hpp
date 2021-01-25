@@ -22,8 +22,9 @@ extern "C"
  * @returns The dimensional time corresponding to nonDim
  */
 template <typename Type> 
-Type getDimensionalTime(Type &nonDim)
+Type getDimensionalTime(const Type &nonDim)
 {
+	if ( std::abs(PARAMS::targetGM) < 1e-6 ) throw std::domain_error("Error: target GM is zero in getDimensionalTime.");
     return nonDim * std::sqrt( std::pow(PARAMS::R, 3) / PARAMS::targetGM );
 }
 
@@ -32,8 +33,10 @@ Type getDimensionalTime(Type &nonDim)
  * @returns The non-dimensional time corresponding to dim
  */
 template <typename Type> 
-Type getNonDimensionalTime(Type &dim)
+Type getNonDimensionalTime(const Type &dim)
 {
+
+	if ( std::abs(PARAMS::R) <  1e-06) throw std::domain_error("Error: R is zero in getNonDimensionalTime.");
     return dim * std::sqrt( PARAMS::targetGM / std::pow(PARAMS::R, 3) );
 }
 
@@ -45,6 +48,7 @@ template <typename Type>
 void getNonDimPosition(Type& dim, Type& nonDim)
 {
     nonDim = dim;
+    if ( std::abs(PARAMS::R) < 1e-06 ) throw std::domain_error("Error: R is ~0 in getNonDimPosition.");
     for (size_t idx = 0; idx < nonDim.size(); ++idx) nonDim[idx] = nonDim[idx] / PARAMS::R;
 }
 
@@ -67,6 +71,7 @@ template <typename Type>
 void getDimVelocity(Type& nonDim, Type& dim)
 {
     dim = nonDim;
+    if ( std::abs(PARAMS::R) < 1e-06 ) throw std::domain_error("Error: R is ~0 in getDimVelocity.");
     double coeff = std::sqrt(PARAMS::targetGM / PARAMS::R);
     for (size_t idx = 0; idx < dim.size(); ++idx) dim[idx] = dim[idx] * coeff;
 }
@@ -79,6 +84,7 @@ template <typename Type>
 void getNonDimVelocity(Type& dim, Type& nonDim)
 {
     nonDim = dim;
+    if ( std::abs(PARAMS::targetGM) < 1e-06 ) throw std::domain_error("Error: targetGM is ~0 in getDimVelocity.");
     double coeff = std::sqrt(PARAMS::R / PARAMS::targetGM);
     for (size_t idx = 0; idx < nonDim.size(); ++idx) nonDim[idx] = nonDim[idx] * coeff;
 }
