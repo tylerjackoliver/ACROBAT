@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "testLaguerreConway.hpp"
 #include "testRootFinding.hpp"
+#include "testIntegration.hpp"
 
 
 int main(int argc, char **argv)

@@ -71,13 +71,13 @@ TEST( cross3, checkDimensionNotOK)
 	std::vector<double> a(3), b(3), c(2), d;
 	try {
 		cross3(a, c, d);
-		FAIL() << "Expected std::domain_error";
+		FAIL() << "Expected std::domain_error; no error thrown.";
 	}
 	catch(std::domain_error const & err) {
 		EXPECT_EQ(err.what(), std::string("One of the input vectors to cross3 are not of size 3."));
 	}
 	catch(...) {
-		FAIL() << "Expected std::domain_error";
+		FAIL() << "Expected std::domain_error; other error thrown.";
 	}
 
 }
@@ -87,7 +87,7 @@ TEST( dotProduct, checkDimensionNotOK )
 	std::vector<double> a(3), b(3), c(2);
 	try {
 		double tmp = dotProduct(a, c);
-		FAIL() << "Expected std::domain_error";
+		FAIL() << "Expected std::domain_error; no error thrown.";
 	}
 	catch(std::domain_error const & err)
 	{
@@ -95,7 +95,7 @@ TEST( dotProduct, checkDimensionNotOK )
 	}
 	catch( ... )
 	{
-		FAIL() << "Expected std::domain_error";
+		FAIL() << "Expected std::domain_error; other error thrown.";
 	}
 }
 
