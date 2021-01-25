@@ -16,7 +16,7 @@ TEST (laguerreConwayTest, meanToEccentric)
 		for (double E = 0.0; E < 360.; E+= 10.) // 0 -> 360 degrees
 		{
 			// Get the reference solution
-			double meanAnomaly = referenceSolutions(E, ecc);
+			double meanAnomaly = referenceMeanAnomaly(E, ecc);
 			// Attempt to recover the value of E from the Laguerre-conway method
 			ASSERT_NEAR( meanToEccentric(meanAnomaly, ecc, solverTolerance), E, solverTolerance*10); // meanAnomaly, eccentricity, solver epsilon
 		}

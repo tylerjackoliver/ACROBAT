@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "testLaguerreConway.hpp"
-#include "testCoordinateTransforms.hpp"
+#include "testRootFinding.hpp"
 
 
 int main(int argc, char **argv)
