@@ -4,6 +4,19 @@
 #include <mpi.h>
 #include "Point.hpp"
 
+
+/* @brief Obtains the rank of a given worker, and the total number of workers in the pool.
+ * @param[inout] myRank The rank of the worker calling the function
+ * @param[inout] poolSize The total number of workers in the pool
+ */
+void getWorkerInfo(int& myRank, int& poolSize)
+{
+	MPI_Status status;
+	int returnCode;
+	returnCode = MPI_Comm_size(MPI_COMM_WORLD, &poolSize);
+	returnCode = MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+}
+
 /* @brief Broadcasts a vector of integer points from the master worker onto all other workers.
    @param[in] vectorToBroadcast Vector, fully defined on rank zero, to be broadcast to all other workers.
    @param[in] rank Rank of this worker in the pool.
@@ -187,6 +200,90 @@ void broadcastCount(int& countToBroadcast)
 {
     int returnCode;
     returnCode = MPI_Bcast(&countToBroadcast, 1, MPI_INT, 0, MPI_COMM_WORLD);
+}
+
+/* @brief Reduces and broadcasts a vector of initial conditions to each worker.
+ * @param[inout] ics. On entry: initial conditions valid on each worker. On exit: initial conditions
+ */
+void broadcastMapping(std::vector<std::vector<double>>& ics)
+{
+	MPI_Status mpiStatus;
+	int rank, poolSize;
+	getWorkerInfo(rank, poolSize);
+	int returnCode;
+	/* If master, need to receive everything first. */
+	if (rank == 0)
+	{
+		/* Iterate through workers */
+		for (int worker = 1; worker < poolSize; ++worker)
+		{
+			int numberOfICsToReceive;
+			returnCode = MPI_Recv(&numberOfICsToReceive, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+
+			for (int ICNum = 0; ICNum < numberOfICsToReceive; ++ICNum)
+			{
+				std::vector<double> thisCondition(6);
+				for (int dimension; dimension < thisCondition.size(); ++dimension)
+				{
+					double tmp;
+					returnCode = MPI_Recv(&tmp, 1, MPI_DOUBLE, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+					thisCondition[dimension] = tmp;
+				}
+				ics.push_back(thisCondition);
+			}
+		}
+		/* Now all the data has been amassed on the master worker, send it to all other workers. */
+		int numberOfICsToSend = ics.size();
+
+		for (int worker = 1; worker < poolSize; ++worker)
+		{
+			returnCode = MPI_Send(&numberOfICsToSend, 1, MPI_INT, worker, worker, MPI_COMM_WORLD);
+			for (int ICNum = 0; ICNum < numberOfICsToSend; ++ICNum)
+			{
+				std::vector<double> thisIC = ics[ICNum];
+				for (int dimension = 0; dimension < thisIC.size(); ++dimension)
+				{
+					double tmp = thisIC[dimension];
+					returnCode = MPI_Send(&tmp, 1, MPI_DOUBLE, worker, worker, MPI_COMM_WORLD);
+				}
+			}
+		}
+	} else
+	{
+		/* Send the number of things this worker has to send to the master core */
+		int numberOfICsToSend = ics.size();
+		returnCode = MPI_Send(&numberOfICsToSend, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
+
+		/* Now send the actual data */
+		for (int ICNum = 0; ICNum < numberOfICsToSend; ++ICNum)
+		{
+			std::vector<double> thisCondition = ics[ICNum];
+			for (int dimension; dimension < thisCondition.size(); ++dimension)
+			{
+				double tmp = thisCondition[dimension];
+				returnCode = MPI_Send(&tmp, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD);
+			}
+		}
+		/* Now the data has been sent, clear our set ready to receive from the master */
+		ics.clear();
+		/* Receive from master - first get the number to receive */
+		int numberOfICsToReceive;
+		returnCode = MPI_Recv(&numberOfICsToReceive, 1, MPI_INT, 0, rank, MPI_COMM_WORLD, &mpiStatus);
+		/* Now receive the conditions */
+		for (int ICNum = 0; ICNum < numberOfICsToReceive; ++ICNum)
+		{
+			std::vector<double> icToReceive(6);
+			for (int dimension = 0; dimension < icToReceive.size(); ++dimension)
+			{
+				double tmp;
+				returnCode = MPI_Recv(&tmp, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD, &mpiStatus);
+				icToReceive[dimension] = tmp;
+			}
+			ics.push_back(icToReceive);
+		}
+	}
+	/* Wait for all to complete - not needed in theory, safe in practice. */
+	MPI_Barrier(MPI_COMM_WORLD);
 }
 
 #endif
