@@ -15,6 +15,7 @@
 #include <string>
 #include "rootFinding.hpp"
 #include <mpi.h>
+#include "coordinateTransforms.hpp"
 
 extern "C"
 {
@@ -31,6 +32,30 @@ int sgn(numericType val)
 {
     return (val > 0) - (val < 0);
 }
+
+template <typename pointType>
+void broadcastMap(unsigned int stabNum, std::unordered_map<int, std::vector<Point<pointType>>>&map)
+{
+    int mpiReturn;
+    int rank, size;
+    mpiReturn = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    mpiReturn = MPI_Comm_size(MPI_COMM_WORLD, &size);
+    for (int revNumber = 1; revNumber <= stabNum; ++revNumber)
+    {
+        std::vector<Point<pointType>> thisValue = map[revNumber];
+        std::vector<Point<pointType>> toBroadcast;
+        reduceVector(thisValue, toBroadcast, rank, size);
+        broadcastVector(toBroadcast, rank);
+        map[revNumber] = toBroadcast;
+    }
+    int revNumber = -1;
+    std::vector<Point<pointType>> thisValue = map[revNumber];
+    std::vector<Point<pointType>> toBroadcast;
+    reduceVector(thisValue, toBroadcast, rank, size);
+    broadcastVector(toBroadcast, rank);
+    map[revNumber] = toBroadcast;
+}
+
 
 namespace ACROBAT
 {
@@ -79,93 +104,6 @@ namespace ACROBAT
             void setInitialTime(const double initialTime)
             {
                 this->_initialTime = initialTime;
-            }
-
-            /*  @brief Obtains the capture set from a given set of indices corresponding to points in an EME2000 field.
-                @param[in] stabNum The stability index the set is sought for
-                @param[in] domain The vector of points containing indices for which the sets are to be based off of
-                @param[in] field The domain for which the points in domain correspond to
-                @param[out] points A vector containing the indices of the corresponding capture set
-            */ 
-            template <typename integerType, typename fieldType, typename vectorType>
-            void getSetFromPoints(const integerType& stabNum, std::vector<Point<vectorType>> &domain, ACROBAT::emeField<fieldType>& field, std::vector<Point<vectorType>> &points, std::vector<Point<double>>& initialConditions)
-            {    
-                // Statuses - ordered s.t. index related to condition is (status code - 1) - crash, escape, stable, acrobatic
-                std::vector<int> setStatistics(4);
-                std::vector<Point<vectorType>> privatePoints;
-                std::vector<Point<double>> privateCoordinates;
-
-                // Get the integration direction (+ve or -ve time?)
-                int directionTime = sgn(stabNum);
-                unsigned prog = 0;
-
-                // Iterate through the conditions on the EME2000 field - do jumps of our rank and pool size
-                int rank, poolSize, returnStatus;
-                MPI_Status mpiStatus;
-                returnStatus = MPI_Comm_size(MPI_COMM_WORLD, &poolSize);
-                returnStatus = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-                for (unsigned i = rank; i < domain.size(); i += poolSize)
-                {
-                    // Get an initial position
-                    Point<vectorType> indices = domain[i];
-                    int idx1 = indices.state[0];
-                    int idx2 = indices.state[1];
-                    Point<double> currentPoint = initialConditions[i];
-                    Point<double> originalPoint = field.getValue(idx1, idx2);
-                    std::vector<double> stateAtCrossing(6);
-
-                    // Get the status of this points behaviour
-                    int status = getStatus(currentPoint, originalPoint, field.getInitialTime(), directionTime, stateAtCrossing);
-                    // Increment the correct counter in the setStatistics vector (ordered s.t. index is status-1)
-                    setStatistics[status-1]++;
-                    // If weakly stable, append its indices to the points vector
-                    if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
-                    {
-                        Point<int> thisPoint; thisPoint[0] = idx1; thisPoint[1] = idx2;
-                        std::vector<double> stateToInsert;
-                        getDimState(stateAtCrossing, stateToInsert);
-                        Point<double> pointToInsert(stateToInsert);
-                        privatePoints.insert(privatePoints.end(), thisPoint);
-                        privateCoordinates.insert(privateCoordinates.end(), pointToInsert);
-                    }
-                    prog += poolSize;
-                    if (rank == 0) std::cout << "Completed integration " << prog << " of " << domain.size() << "." << std::endl;
-                }
-                for (int dimension = 0; dimension < setStatistics.size(); ++dimension)
-                {
-                    reduceCount(setStatistics[dimension], setStatistics[dimension]);
-                    broadcastCount(setStatistics[dimension]);
-                }
-                initialConditions.clear();
-                reduceVector(privatePoints, points, rank, poolSize);
-                reduceVector(privateCoordinates, initialConditions, rank, poolSize);
-                broadcastVector(initialConditions, rank);
-                broadcastVector(points, rank);
-                if (rank == 0) printStatistics(stabNum, setStatistics);
-            } // function
-
-
-            /* @brief Obtains the stabNumber-revolution stable set for a given EME2000 field. Note than stabNumber entries in the map are returned.
-            * @param[in] stabNumber The number of revolutions a particle should complete in order to be classed as stable.
-            * @param[out] std::unordered_map The keys are the number of rotations, and the values are a std::vector<> containing the points comprising the set.
-            */
-            template <typename integerType, typename pointType>
-            void getStableSet(integerType stabNumber, std::unordered_map<int, std::vector<Point<pointType>>>& outIndices)
-            {
-                int mpiCode;
-                int rank, size;
-                mpiCode = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-                mpiCode = MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-                for (unsigned i = rank; i < this->getXExtent(); i += size)
-                {
-                    for (unsigned j = 0; j < this->getYExtent(); ++j)
-                    {
-                        getStatus(stabNumber, outIndices, i, j, *this);
-                }
-                    if (rank == 0) std::cout << "Completed operation " << (i+1)*this->getYExtent() << " of " << this->getXExtent() * this->getYExtent() << std::endl;
-            }
-                broadcastMap(stabNumber, outIndices);
             }
 
             /* @brief Writes the results of the set generation to an output file
@@ -287,87 +225,6 @@ namespace ACROBAT
         std::cout << "\t Number of acrobatic: " << setStatistics[3] << std::endl;
     }
 
-    /* @brief Obtains the rotation matrix for transforming from the BME frame to the EME frame at a given epoch
-    *  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
-    *  @param[out] rot The rotation matrix to transform from the BME to the EME frame (6x6)
-    */
-    template <typename matrixType>
-    void getBMEtoEMERotationMatrix(const double &epoch, Eigen::Matrix<matrixType,3,3> &rot)
-    {
-        // Get the current values of alpha and delta at this time
-        double alpha, delta;
-        RADEC::getAlphaDelta(epoch, alpha, delta);
-
-        /* Construct the matrix. In theory, we would need to also construct the derivative 
-           of the rotation matrix in order to get the velocity rotated into the frame, but
-           since the derivative of the rotation matrix is of magnitude 1e-10...we ignore it.
-        */
-        double sina = std::sin(alpha);
-        double sind = std::sin(delta);
-
-        double cosa = std::cos(alpha);
-        double cosd = std::cos(delta);
-
-        rot(0, 0) = -sina; rot(0,1) = -cosa * sind; rot(0,2) = cosa * cosd;
-        rot(1, 0) = cosa;  rot(1,1) = -sina * sind; rot(1,2) = cosd * sina;
-        rot(2, 0) = 0.0;   rot(2,1) = cosd;         rot(2,2) = sind;
-    }
-
-    /* @brief Obtains the rotation matrix and its derivative for transforming from the BME frame to the EME frame at a given epoch.
-     * @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
-     * @param[out] rot The rotation matrix to transform from the BME to EME frame
-     * @param[out] dRot The derivative of the rotation matrix rot
-     */
-    template <typename epochType, typename matrixType>
-    void getBMEtoEMERotationMatrix(const double& epoch, Eigen::Matrix<matrixType, 3, 3>& rot, Eigen::Matrix<matrixType, 3, 3>& dRot)
-    {
-    	double alpha, delta, alphaDeriv, deltaDeriv;
-    	RADEC::getAlphaDelta(epoch, alpha, delta);
-    	RADEC::alphaDeltaDerivatives(epoch, alphaDeriv, deltaDeriv); // Derivatives with respect to time
-
-    	/* Construct the rotation matrix */
-    	double sina = std::sin(alpha);
-    	double sind = std::sin(delta);
-    	double cosa = std::cos(alpha);
-    	double cosd = std::cos(delta);
-
-        rot(0, 0) = -sina; rot(0,1) = -cosa * sind; rot(0,2) = cosa * cosd;
-        rot(1, 0) = cosa;  rot(1,1) = -sina * sind; rot(1,2) = cosd * sina;
-        rot(2, 0) = 0.0;   rot(2,1) = cosd;         rot(2,2) = sind;
-
-        /* And now the derivative of the rotation matrix */
-        rot(0, 0) = -cosa; rot(0, 1) = sina * sind * alphaDeriv - cosa * cosd * deltaDeriv; rot(0, 2) = -(sina * cosd * alphaDeriv + deltaDeriv * sind * cosd);
-        rot(1, 0) = -sina; rot(1, 1) = -(cosa * sind * alphaDeriv + deltaDeriv * sina * cosd); rot(1, 2) = -(sind * sina * deltaDeriv - cosd * cosa * alphaDeriv);
-        rot(2, 0) = 0.0; rot(2, 1) = -sind; rot(2,2) = cosd;
-    }
-
-    /* @brief Obtains the rotation matrix for transforming from the EME frame to the BME frame at a given epoch
-    *  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
-    *  @param[out] rot The rotation matrix to transform from the EME to the BME frame (6x6)
-    */
-    template <typename matrixType>
-    void getEMEtoBMERotationMatrix(double &epoch, Eigen::Matrix<matrixType,6,6> &rot)
-    {
-        // Convert target string to integer ID
-        SpiceDouble rotationMatrix[6][6];
-
-        // Construct the name of the reference frame
-        std::string desFrame = "IAU_"+PARAMS::TARGET;
-        std::string refFrame = "J2000";
-
-        // Call the rotation matrix generator
-        sxform_c(refFrame.c_str(), desFrame.c_str(), epoch, rotationMatrix);
-
-        // Copy the rotation matrix into the output vector
-        for (unsigned i = 0; i < 6; ++i)
-        {
-            for (unsigned j = 0; j < 6; ++j)
-            {
-                rot(i,j) = rotationMatrix[i][j];
-            }
-        }
-    }
-
     /*  @brief Converts a BME@Epoch field to an EME2000 field.
         @param[in] bmeField: bmeField to convert
         @param[out] emeField: emeField to store the conversion in.
@@ -443,7 +300,10 @@ namespace ACROBAT
                 // Compute
                 xb = Qbe * xe;
 
-                // Swap back
+                // Swap back//    if (rank == 0){
+                //        emeDomain.outputWrite(n, results);
+                //        std::cout << "Completed obtaining the stable sets. The time required was " << std::chrono::duration_cast<std::chrono::seconds>(end-start).count() << " seconds.";
+                //    }
                 for (unsigned idx = 0; idx < 6; ++idx) temp[i] = xb(i);
 
                 // Assign
@@ -451,277 +311,185 @@ namespace ACROBAT
             }
         }
     }
-        
-    /*  @brief Obtains the points in the set for a given stability index stabNum across the whole EMEJ2000 field.
-        @param[in] stabNum The stability index
-        @param[in] field EME2000 Field containing the domain to integrate
-        @param[out] points std::vector<> of Points containing the indices of points in the set
-    */
-    template <typename integerType, typename fieldType>
-    void getSet(const integerType stabNum, ACROBAT::emeField<fieldType>& field, std::vector<Point<int>> &pointIndices, std::vector<Point<double>>& pointCoordinates)
-    {
-        // Statuses
-        std::vector<int> setStatistics(4);
-        std::vector<Point<int>> privatePoints;
-        std::vector<Point<double>> privateCoordinates;
-        // Get the integration direction (+ve or -ve time?)
-        int directionTime = sgn(stabNum);
-        unsigned prog = 0;
-        // Iterate through the conditions on the EME2000 field - do jumps of our rank and pool size
-        int rank, poolSize, returnStatus;
-        MPI_Status mpiStatus;
-        returnStatus = MPI_Comm_size(MPI_COMM_WORLD, &poolSize);
-        returnStatus = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        for (unsigned i = rank; i < field.getXExtent(); i += poolSize)
-        {
-            for (unsigned j = 0; j < field.getYExtent(); ++j)
-            {
-                // Get current point
-                Point<double> currentPoint = field.getValue(i, j);
-                std::vector<double> stateAtCrossing(6);
-                Point<double> originalPosition = field.getValue(i,j);
-                
-                // Get the status of this points behaviour
-                int status = getStatus(currentPoint, originalPosition, field.getInitialTime(), directionTime, stateAtCrossing);
-                setStatistics[status-1]++;
-                // If weakly stable, append its indices to the points vector
-                if ( (directionTime > 0 && status == 3) || (directionTime < 0 && status == 2) )  // Want n-revolution points or backwards escape
-                {
-                    Point<int> thisPoint; thisPoint[0] = i; thisPoint[1] = j;
-                    std::vector<double> dimensionalisedStateAtCrossing;
-                    getDimState(stateAtCrossing, dimensionalisedStateAtCrossing);
-                    Point<double> coordinateToAdd(dimensionalisedStateAtCrossing);
-                    privatePoints.insert(privatePoints.end(), thisPoint);
-                    privateCoordinates.insert(privateCoordinates.end(), coordinateToAdd);
-                }
-                prog += poolSize;
-            }
-            if (rank == 0) std::cout << "Completed integration " << prog << " of " << (field.getXExtent() * field.getYExtent()) << "." << std::endl;
-        }
-        // Now every worker has completed their chunk, their results must all be sent to the rank 0 processor
-        reduceVector(privatePoints, pointIndices, rank, poolSize);
-        reduceVector(privateCoordinates, pointCoordinates, rank, poolSize);
-        broadcastVector(pointIndices, rank);
-        broadcastVector(pointCoordinates, rank);
-        for (unsigned i = 0; i < setStatistics.size(); ++i)
-        {
-            reduceCount(setStatistics[i], setStatistics[i]); // Send from all cores to receive at master
-            broadcastCount(setStatistics[i]);  // Send from master to all cores
-        }
-        if (rank == 0) printStatistics(stabNum, setStatistics);
-    } // function
+
+    /* @brief Performs a single step of the ODE integration.
+     * @param[in] Stepper Boost::numeric::odeint::stepper to use.
+     * @param[inout] x On entry: point to advect forward. On exit: advected point.
+     * @param[inout] t On entry: previous time step. On exit: new time step.
+     * @param[inout] dt On entry: guess for the time step needed. On exit: time step taken.
+     */
+     template <typename stepperType, typename vectorType>
+     void makeStep(stepperType& stepper, std::vector<vectorType>& x, vectorType& t, vectorType& dt)
+     {
+    	 boost::numeric::odeint::controlled_step_result status = boost::numeric::odeint::fail;
+
+    	 /* Return to the calling function only when the step was successful. */
+    	 while (status == boost::numeric::odeint::fail)
+    	 {
+    		 status = stepper.try_step(forceFunction, x, currentTime, dt); // Force function defined in integration.hpp
+    	 }
+     }
 
 
-    /*  @brief Performs a step using a given boost stepper; returns the current time and the new state if successful
-    *   @param[in] stepper Boost::odeint::numeric object corresponding to a controlled stepper
-    *   @param[inout] currentTime On input, it contains the time of integration at the start of step. On exit, it contains the new time (i.e. after one step)
-    *   @param[inout] x On input, it contains the state of the particle at the previous timestep. On exit, it contains the new state of the particle (i.e. after one step)
-    *   @param[inout] dt On input, it contains a guess for the time-step to be taken. On exit, it contains the actual time-step taken.
-    *   @param[in] f The force function to integrate.
-    */
-    template <typename stepperType>
-    void make_step(stepperType& stepper, std::vector<double>& x, double& currentTime, double& dt)
-    {
-        boost::numeric::odeint::controlled_step_result result = boost::numeric::odeint::fail;
-        
-        /* We only want this to return back to the calling function when the step was successful.
-        Therefore, keep retrying this until the stepper returns a value that was within tolerance.
-        */
-        while(result == boost::numeric::odeint::fail)
-        {
-            result = stepper.try_step(forceFunction, x, currentTime, dt);
-        }
-    }
+     /* @brief Obtain the sets of solutions from a given field.
+      * @param[in] stabNum Stability number for which the sets should be obtained
+      * @param[inout] field The initial conditions field over which the sets should be obtained
+      * @param[inout] sets unordered_map, mapping orbit numbers to a vector of vectors containing the Points in the given set
+      */
+     template <typename integerType, typename fieldType, typename vectorType>
+     void getSets(const integerType& stabNum, ACROBAT::emeField<fieldType>& field,
+     		std::unordered_map<int, std::vector<std::vector<std::pair<int, int>>>>& sets)
+     {
+     	/* Going to iterate through the domain using all the workers in the MPI pool, so get the
+     	 * size of the MPI pool and the position of each worker in the pool here
+     	 */
+     	int myRank, poolSize;
+     	getWorkerInfo(myRank, poolSize); // Defined in mpiWrappers.hpp
 
-    /* @brief Computes whether a given point is acrobatic, weakly stable, crashes, or escapes.
-    *  @param[in] point The initial conditions (in a Point<> structure) to be tested
-    *  @param[in] initTime The initial time for the integration of the trajectory
-    *  @param[in] direction The direction for the timespan of the integration (+1/-1)
-    *  @returns Status code corresponding to the behaviour of the trajectory
-    */
-    template <typename pointType>
-    void getStatus(unsigned int n, std::unordered_map<int, std::vector<Point<pointType>>>& map, int i, int j, ACROBAT::emeField<Point<double>>& eme)
-    {
-        // Initialise the stepper to be used
-        typedef std::vector<double> stateType;
-        // Fill an initial condition vector and normalize on entry
-        stateType x0Dim(6), xDim(6), xOrig(6), x0, x, xOrigNonDim;
-        Point<double> thisPoint = eme.getValue(i, j);
-        for (unsigned idx = 0; idx < 6; ++idx) 
-        {
-            x0Dim[idx] = thisPoint.state[idx];
-            xDim[idx] = thisPoint.state[idx];
-            xOrig[idx] = thisPoint.state[idx];
-        }
+     	/* How big is the domain we're studying? */
+     	int domainExtentX = field.getXExtent(), domainExtentY = field.getYExtent();
 
-        // Normalise
-        getNonDimState(x0Dim, x0);
-        getNonDimState(xDim, x);
-        getNonDimState(xOrig, xOrigNonDim);
+     	/* Now, iterate through the domain.
+     	 * At each point, we call the getStatus function to obtain the its status for the n-th revolution. The result is returned
+     	 * as a pair: (number of revolutions, status on n-th revolutions). This allows us to populate the relevant vectors in the mapping
+     	 * for its starting point.
+     	 */
+     	for (long i = myRank; i < domainExtentX; i += poolSize)
+     	{
+     		for (long j = 0; j < domainExtentY; ++j)
+     		{
+     			/* Extract this starting point from the domain */
+     			std::vector<fieldType> startingPoint = emeField.getValue(i, j).state; // emeField.getValue returns Point<fieldType>
+     			/* Integrate it forward and get the status */
+     			std::pair<int, int> forwardStatus = getStatus(stabNumber, startingPoint);
+     			/* Integrate it backward and get the status */
+     			std::pair<int, int> backwardStatus = getStatus(-1, startingPoint);
+     			/* Add the relevant positions to the final set mapping
+     			 * The first value in the pair goes up to the final revolution number;
+     			 * the second is the status at the final revolution.
+     			 *
+     			 * E.g. <0, 1> => on the zero-th revolution, the particle crashed.
+     			 * 		<2, 3> => on the second revolution, the particle crashed. It successfully orbited for n = 2.
+     			 */
+     			std::pair pairToPush = std::make_pair(i, j);
+     			for (int n  = 0; n < forwardStatus.first; ++n)
+     			{
+     				sets[n][2].push_back(pairToPush); // Set -> vector -> vector -> pair
+     			}
+     			sets[forwardStatus.first][forwardStatus.second].push_back(pairToPush); // Set -> vector -> vector -> pair
+     			sets[backwardStatus.first][backwardStatus.second].push_back(pairToPush); // Set -> vector -> vector -> pair
+     		}
+     	}
+     	/* Send mapping to all the workers */
+     	broadcastMapping(sets);
+     	/* Need to write a function to broadcast each value of the mapping from all cores to the worker and back again */
+     }
 
-        unsigned rev = 1;
-        // Initialise current time
-        double currentTime = 0.0;
-        double dt = 0.01;
+     /* @brief Extract the stable set for a given stability number. The stable set is formed of n forward, -1 backward.
+      * @param[in] setMapping Contains the set statistics for all points tested.
+      * @param[in] stabNumber The desired forward stability number
+      * @param[in] field Desired field for which to extract the initial conditions.
+      * @param[out] points vector<point<type>> containing the initial conditions for the set in the desired frame.
+      */
+      template <typename pointType, typename fieldType>
+      void extractStableSet(const int stabNumber,
+     		               const std::unordered_map<int, std::vector<std::vector<std::pair<int, int>>>>& setMapping,
+     		 	 	 	   const fieldType& field, std::vector<std::vector<pointType>>& points)
+      {
+     	 /* First, extract the n-forward points */
+     	 std::vector< std::pair<int, int> > nForward = setMapping[n][2]; // n-Forward, full revs
+     	 /* Now the -1-backwards */
+     	 std::vector< std::pair<int, int> > nBackward = setMapping[-1][1]; // n-Backward, escape
+     	 /* Add initial conditions to points */
+     	 points.clear();
+     	 for (std::pair<int, int>& forwardPoint : nForward)
+     	 {
+     		 /* Check if this point in nBackward */
+     		 for (std::pair<int, int>& backwardPoint : nBackward)
+     		 {
+     			 if (forwardPoint == backwardPoint)
+     			 {
+     				 Point<pointType> tmpPoint = field.getValue(forwardPoint.first, forwardPoint.second);
+     				 std::vector<pointType> tmpVector = tmpPoint.state; // Underlying vector storage
+     				 points.push_back(tmpVector);
+     			 }
+     		 }
+     	 }
+      }
 
-        while (rev <= n)
-        {
-            // Integration status
-            int status = 0;
-            // Initialiser for the previous value of condition one
-            double prevCondOne = 1.0;
-            // Stepper
-            boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-            auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
+      /* @brief Computes the status of a single trajectory. For stabNumber > 0, integration is in forward time. For stabNumber < 0, backward.
+       * @param[in] stabNumber The number of orbits up to (and including) which to test
+       * @param[in] startingPoint C++ vector containing the initial conditions of the point
+       * @param[in] targetCondition Integer status code for which the final behaviour is desired.
+       * @returns std::pair<int, int> of the final number of orbits completed, and the status on the n-th revolution
+       */
+      template <typename integerType, typename vectorType>
+      std::pair<int, int> getStatus(const integerType stabNumber, const std::vector<vectorType>& startingPoint)
+      {
+      	/* Conditions in EMEField need to be non-dimensionalised for the integration to take place correctly.
+      	 * The normalisation prevents errors occurring when the motion is close to the target body.
+      	 *
+      	 * startingPoint contains the original position before *any* integration. nonDimInitialCondition
+      	 * stores the starting point of the particle on a given orbit (so if n = 1 revolutions occur, it is the initial condition
+      	 * after one revolution. currentPoint is the...current position.
+      	 */
+      	std:vector<vectorType> nonDimStartingPoint(6), nonDimCurrentPoint(6), nonDimInitialCondition(6);
 
-            while (status == 0)
-            {
-                /* Make a step using the given solver & force function */
-                make_step(stepper, x, currentTime, dt);
-                /* Call the integrator observer function */
-                status = integrationController(x, xOrigNonDim, x0, currentTime, prevCondOne);
-            }
-            if (status != 3) // If didn't get a full revolution...
-            {
-                rev = 100;
-            } else
-            {
-                obtainZero(x0, x, currentTime);
-                Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
-                map[rev].push_back(tmp);
-            }
-            // Reset for the next run
-            xOrigNonDim = x;
-            rev++;
-        }
-        /* Now do the backwards run */
-        int status = 0;
-        double prevCondOne = -1;
-        dt = -.01;
-        /* Reset the stepper */
-        boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
-        currentTime = 0.0;
-        x = x0;
-        while (status == 0)
-        {
-            /* Make a step using the given solver & force function */
-            make_step(stepper, x, currentTime, dt);
-            /* Call the integrator observer function */
-            status = integrationController(x, x0, x0, currentTime, prevCondOne);
-        }
-        if (status == 2) // Escape
-        {
-            Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
-            map[-1].push_back(tmp);
-        }
-    }
+      	getNonDimState(startingPoint, nonDimStartingPoint);
+      	nonDimCurrentPoint = nonDimStartingPoint; // On the first orbit, all three are equal
+      	nonDimInitialCondition = nonDimStartingPoint;
 
-    /* @brief Computes whether a given point is acrobatic, weakly stable, crashes, or escapes.
-    *  @param[in] point The initial conditions (in a Point<> structure) to be tested
-    *  @param[in] initTime The initial time for the integration of the trajectory
-    *  @param[in] direction The direction for the timespan of the integration (+1/-1)
-    *  @returns Status code corresponding to the behaviour of the trajectory
-    */
-    template <typename pointType>
-    void getStatus(unsigned int n, std::unordered_map<int, std::vector<Point<pointType>>>& map, int i, int j, ACROBAT::emeField<Point<double>>& eme)
-    {
-        // Initialise the stepper to be used
-        typedef std::vector<double> stateType;
-        // Fill an initial condition vector and normalize on entry
-        stateType x0Dim(6), xDim(6), xOrig(6), x0, x, xOrigNonDim;
-        Point<double> thisPoint = eme.getValue(i, j);
-        for (unsigned idx = 0; idx < 6; ++idx) 
-        {
-            x0Dim[idx] = thisPoint.state[idx];
-            xDim[idx] = thisPoint.state[idx];
-            xOrig[idx] = thisPoint.state[idx];
-        }
+      	/* Initialise integration stepper */
+      	boost::numeric::odeint::runge_kutta_fehlberg78<std::vector<vectorType>> method;
+      	auto stepper = boost::numeric::odeint::make_controlled(1.e-012, 1.e-012, method); // relTol, absTol, method
+      	int integrationDirection = sgn(stabNumber); // Returns (1, 0, -1) depending on sign
+      	double dt = 0.01 * integrationDirection;
 
-        // Normalise
-        getNonDimState(x0Dim, x0);
-        getNonDimState(xDim, x);
-        getNonDimState(xOrig, xOrigNonDim);
+      	/* Initialise output result */
+      	std::pair<int, int> result = std::make_pair(-1, -1); // Initialise to "impossible" number to check assignment later
 
-        unsigned rev = 1;
-        // Initialise current time
-        double currentTime = 0.0;
-        double dt = 0.01;
+      	int n;
+      	for(n = 0; std::abs(n) < std::abs(stabnumber); n += integrationDirection) // Abs and integrationDirection allow for -ve or +ve time
+      	{
+      		int integrationStatus = 0;
+      		double previousConditionOne = 1.0 * integrationDirection;
+      		/* Begin running through revolutions */
+      		double currentIntegrationTime = 0.0;
 
-        while (rev <= n)
-        {
-        // Integration status
-        int status = 0;
-        // Initialiser for the previous value of condition one
-            double prevCondOne = 1.0;
-            // Stepper
-            boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-            auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
-
-        while (status == 0)
-        {
-            /* Make a step using the given solver & force function */
-            make_step(stepper, x, currentTime, dt);
-            /* Call the integrator observer function */
-            status = integrationController(x, xOrigNonDim, x0, currentTime, prevCondOne);
-        }
-            if (status != 3) // If didn't get a full revolution...
-            {
-                rev = 100;
-            } else
-        {
-            obtainZero(x0, x, currentTime);
-                Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
-                map[rev].push_back(tmp);
-            }
-            // Reset for the next run
-            xOrigNonDim = x;
-            rev++;
-        }
-        /* Now do the backwards run */
-        int status = 0;
-        double prevCondOne = -1;
-        dt = -.01;
-        /* Reset the stepper */
-        boost::numeric::odeint::runge_kutta_fehlberg78<stateType> method;
-        auto stepper = boost::numeric::odeint::make_controlled(/*reltol*/ 1e-012, /*absTol*/ 1e-012, method);
-        currentTime = 0.0;
-        x = x0;
-        while (status == 0)
-        {
-            /* Make a step using the given solver & force function */
-            make_step(stepper, x, currentTime, dt);
-            /* Call the integrator observer function */
-            status = integrationController(x, x0, x0, currentTime, prevCondOne);
-        }
-        if (status == 2) // Escape
-        {
-            Point<int> tmp; tmp.state[0] = i; tmp.state[1] = j;
-            map[-1].push_back(tmp);
-        }
-    }
-
-    template <typename pointType>
-    void broadcastMap(unsigned int stabNum, std::unordered_map<int, std::vector<Point<pointType>>>&map)
-    {
-        int mpiReturn;
-        int rank, size;
-        mpiReturn = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        mpiReturn = MPI_Comm_size(MPI_COMM_WORLD, &size);
-        for (int revNumber = 1; revNumber <= stabNum; ++revNumber)
-        {
-            std::vector<Point<pointType>> thisValue = map[revNumber];
-            std::vector<Point<pointType>> toBroadcast;
-            reduceVector(thisValue, toBroadcast, rank, size);
-            broadcastVector(toBroadcast, rank);
-            map[revNumber] = toBroadcast;
-        }
-        int revNumber = -1;
-        std::vector<Point<pointType>> thisValue = map[revNumber];
-        std::vector<Point<pointType>> toBroadcast;
-        reduceVector(thisValue, toBroadcast, rank, size);
-        broadcastVector(toBroadcast, rank);
-        map[revNumber] = toBroadcast;
-    }
+      		while (integrationStatus == 0)
+      		{
+      			/* Make a step on the trajectory */
+      			make_step(stepper, nonDimCurrentPoint, currentTime, dt);
+      			/* Obtain the status of the trajectory.
+      			 * 0 => nothing to report, continue
+      			 * 1 => crashed
+      			 * 2 => escaped
+      			 * 3 => full revolution
+      			 * 4 => acrobatic
+      			 */
+      			integrationStatus = integrationController(nonDimCurrentPoint, nonDimStartingPoint, nonDimInitialCondition,
+      													  currentIntegrationTime, previousConditionOne);
+      		}
+      		/* Now, check why the integration failed. If it wasn't because it completed a revolution - stop. */
+      		if ( integrationStatus == 3) )
+      		{
+      			result.first = n; result.second = integrationStatus; // How far it got, what it failed with
+      		} else
+      		{
+      			/* If it went round on its orbit, we're going to continue the integration from here. We need to find the
+      			 * exact (ish) point it completed its revolution, and reset the definitions of currentPoint etc. accordingly
+      			 */
+      			obtainZero(nonDimInitialCondition, nonDimCurrentPoint, currentIntegrationTime);
+      		}
+      	}
+      	/* If we dropped out of the loop only ever orbiting, result won't have been populated. Check that here and override
+      	 * if necessary.
+      	 */
+      	if (result.second < 0)
+      	{
+      		result.first = n; result.second = 3;
+      	}
+      	return result;
+      }
 }
 #endif
