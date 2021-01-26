@@ -84,12 +84,12 @@ void getBMEtoEMERotationMatrix(const double& epoch, Eigen::Matrix<double, 3, 3>&
     rot(0, 0) = -sina; rot(0,1) = -cosa * sind; rot(0,2) = cosa * cosd;
     rot(1, 0) = cosa;  rot(1,1) = -sina * sind; rot(1,2) = cosd * sina;
     rot(2, 0) = 0.0;   rot(2,1) = cosd;         rot(2,2) = sind;
-
-    /* And now the derivative of the rotation matrix */
-    rot(0, 0) = -cosa; rot(0, 1) = sina * sind * alphaDeriv - cosa * cosd * deltaDeriv; rot(0, 2) = -(sina * cosd * alphaDeriv + deltaDeriv * sind * cosd);
-    rot(1, 0) = -sina; rot(1, 1) = -(cosa * sind * alphaDeriv + deltaDeriv * sina * cosd); rot(1, 2) = -(sind * sina * deltaDeriv - cosd * cosa * alphaDeriv);
-    rot(2, 0) = 0.0; rot(2, 1) = -sind; rot(2,2) = cosd;
+    /* And now the derivative of the dRotation matrix */
+    dRot(0, 0) = -cosa; dRot(0, 1) = sina * sind * alphaDeriv - cosa * cosd * deltaDeriv; dRot(0, 2) = -(sina * cosd * alphaDeriv + deltaDeriv * sind * cosd);
+    dRot(1, 0) = -sina; dRot(1, 1) = -(cosa * sind * alphaDeriv + deltaDeriv * sina * cosd); dRot(1, 2) = -(sind * sina * deltaDeriv - cosd * cosa * alphaDeriv);
+    dRot(2, 0) = 0.0; dRot(2, 1) = -sind; dRot(2,2) = cosd;
 }
+
 
 /* @brief Obtains the rotation matrix for transforming from the EME frame to the BME frame at a given epoch
 *  @param[in] epoch The epoch of the transformation in ephemeris seconds past J2000
@@ -117,7 +117,5 @@ void getEMEtoBMERotationMatrix(double &epoch, Eigen::Matrix<matrixType,6,6> &rot
         }
     }
 }
-
-
 
 #endif
