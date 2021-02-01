@@ -479,7 +479,7 @@ namespace ACROBAT
       			/* If it went round on its orbit, we're going to continue the integration from here. We need to find the
       			 * exact (ish) point it completed its revolution, and reset the definitions of currentPoint etc. accordingly
       			 */
-      			obtainZero(nonDimInitialCondition, nonDimCurrentPoint, currentIntegrationTime);
+      			if ( integrationDirection > 0 ) obtainZero(nonDimInitialCondition, nonDimCurrentPoint, currentIntegrationTime);
       		}
       	}
       	/* If we dropped out of the loop only ever orbiting, result won't have been populated. Check that here and override
