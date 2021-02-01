@@ -471,9 +471,10 @@ namespace ACROBAT
       													  currentIntegrationTime, previousConditionOne);
       		}
       		/* Now, check why the integration failed. If it wasn't because it completed a revolution - stop. */
-      		if ( integrationStatus == 3) )
+      		if ( integrationStatus != 3) )
       		{
       			result.first = n; result.second = integrationStatus; // How far it got, what it failed with
+      			break;
       		} else
       		{
       			/* If it went round on its orbit, we're going to continue the integration from here. We need to find the
