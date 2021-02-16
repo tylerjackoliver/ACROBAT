@@ -20,12 +20,11 @@ void cross3(std::vector<double> &a, std::vector<double>& b, std::vector<double>&
     {
         throw std::domain_error("One of the input vectors to cross3 are not of size 3.");
     }
-
     // Reserve space in c
     c.reserve(3);
     // Compute
     c[0] = a[1] * b[2] - a[2] * b[1];
-    c[1] = a[2] * b[0] - a[0] * b[2]; 
+    c[1] = a[2] * b[0] - a[0] * b[2];
     c[2] = a[0] * b[1] - a[1] * b[0];
 }
 
@@ -96,8 +95,8 @@ void obtainZero(std::vector<double>& x0, std::vector<double>& xGuess, double& t0
     typedef dense_stepper_type::time_type time_type;                                            // Define later units in the same datatype the integrator is using 
     stepper.initialize(xGuess, t0Guess, -.001);                                                 // Initialise solver with the initial values of the ODE
 
-    double conditionOnePrevStep = 1.0;                                                          // Condition one on the previous step 
-    double conditionOne = 1.0;                                                                  // Condition one on this step; check for sign change
+    double conditionOnePrevStep = getConditionOne(xGuess, x0);
+    double conditionOne = conditionOnePrevStep;                                                  // Condition one on this step; check for sign change
     bool signChange = false;                                                                    // Have we reached the root?
     std::pair<time_type, time_type> currentTime;                                                // Contains (t, t+dt) on exit from do_step
 

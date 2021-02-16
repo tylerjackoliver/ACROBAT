@@ -214,19 +214,26 @@ void broadcastMapping(std::vector<std::vector<double>>& ics)
 	/* If master, need to receive everything first. */
 	if (rank == 0)
 	{
+        std::cout << "here in the rank zero portion " << std::endl;
 		/* Iterate through workers */
 		for (int worker = 1; worker < poolSize; ++worker)
 		{
+            std::cout << "here2 in the rank zero portion " << std::endl;
 			int numberOfICsToReceive;
 			returnCode = MPI_Recv(&numberOfICsToReceive, 1, MPI_INT, worker, worker, MPI_COMM_WORLD, &mpiStatus);
 
+            std::cout << "here3 in the rank zero portion " << std::endl;
 			for (int ICNum = 0; ICNum < numberOfICsToReceive; ++ICNum)
 			{
 				std::vector<double> thisCondition(6);
-				for (int dimension; dimension < thisCondition.size(); ++dimension)
+				for (int dimension = 0; dimension < thisCondition.size(); ++dimension)
 				{
 					double tmp;
+
+                    std::cout << "here4 in the rank zero portion " << std::endl;
 					returnCode = MPI_Recv(&tmp, 1, MPI_DOUBLE, worker, worker, MPI_COMM_WORLD, &mpiStatus);
+
+                    std::cout << "here5 in the rank zero portion " << std::endl;
 					thisCondition[dimension] = tmp;
 				}
 				ics.push_back(thisCondition);
@@ -238,37 +245,45 @@ void broadcastMapping(std::vector<std::vector<double>>& ics)
 		for (int worker = 1; worker < poolSize; ++worker)
 		{
 			returnCode = MPI_Send(&numberOfICsToSend, 1, MPI_INT, worker, worker, MPI_COMM_WORLD);
+            std::cout << "here6 in the rank zero portion " << std::endl;
 			for (int ICNum = 0; ICNum < numberOfICsToSend; ++ICNum)
 			{
 				std::vector<double> thisIC = ics[ICNum];
 				for (int dimension = 0; dimension < thisIC.size(); ++dimension)
 				{
 					double tmp = thisIC[dimension];
+                    std::cout << "here7 in the rank zero portion " << rank << std::endl;
 					returnCode = MPI_Send(&tmp, 1, MPI_DOUBLE, worker, worker, MPI_COMM_WORLD);
+                    std::cout << "here8 in the rank zero portion " << rank << std::endl;
 				}
 			}
 		}
 	} else
 	{
+        std::cout << "here in the rank n portion " << std::endl;
 		/* Send the number of things this worker has to send to the master core */
 		int numberOfICsToSend = ics.size();
 		returnCode = MPI_Send(&numberOfICsToSend, 1, MPI_INT, 0, rank, MPI_COMM_WORLD);
-
+        std::cout << "here2 in the rank n portion " << std::endl;
 		/* Now send the actual data */
 		for (int ICNum = 0; ICNum < numberOfICsToSend; ++ICNum)
 		{
 			std::vector<double> thisCondition = ics[ICNum];
-			for (int dimension; dimension < thisCondition.size(); ++dimension)
+			for (int dimension = 0; dimension < thisCondition.size(); ++dimension)
 			{
 				double tmp = thisCondition[dimension];
+                std::cout << "here3 in the rank n portion " << rank << std::endl;
 				returnCode = MPI_Send(&tmp, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD);
+                std::cout << "here4 in the rank n portion " << rank << std::endl;
 			}
 		}
 		/* Now the data has been sent, clear our set ready to receive from the master */
 		ics.clear();
 		/* Receive from master - first get the number to receive */
 		int numberOfICsToReceive;
+        std::cout << "here5 in the rank n portion " << std::endl;
 		returnCode = MPI_Recv(&numberOfICsToReceive, 1, MPI_INT, 0, rank, MPI_COMM_WORLD, &mpiStatus);
+        std::cout << "here6 in the rank n portion " << std::endl;
 		/* Now receive the conditions */
 		for (int ICNum = 0; ICNum < numberOfICsToReceive; ++ICNum)
 		{
@@ -276,14 +291,19 @@ void broadcastMapping(std::vector<std::vector<double>>& ics)
 			for (int dimension = 0; dimension < icToReceive.size(); ++dimension)
 			{
 				double tmp;
+                std::cout << "here7 in the rank n portion " << std::endl;
 				returnCode = MPI_Recv(&tmp, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD, &mpiStatus);
+                std::cout << "here8 in the rank n portion " << std::endl;
 				icToReceive[dimension] = tmp;
 			}
 			ics.push_back(icToReceive);
 		}
 	}
+    std::cout << "here9 in the rank n portion " << std::endl;
 	/* Wait for all to complete - not needed in theory, safe in practice. */
 	MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "here10 in the rank n portion " << std::endl;
 }
+
 
 #endif
