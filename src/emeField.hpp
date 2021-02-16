@@ -215,7 +215,7 @@ namespace ACROBAT
         getBMEtoEMERotationMatrix(PARAMS::EPOCH, Qbe, QbeDeriv);
 
         // Apply Qbe to every state in bmeField
-        // #pragma omp parallel for shared(Qbe, QbeDeriv)
+        #pragma omp parallel for shared(Qbe, QbeDeriv)
         for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
         {
             for (unsigned int j = 0; j < bmeField.getYExtent(); ++j)
@@ -231,8 +231,7 @@ namespace ACROBAT
                 }
                 // Compute
                 xe = Qbe * xb;
-                // ve = QbeDeriv * xb + Qbe * vb;
-                ve = Qbe * vb;
+                ve = QbeDeriv * xb + Qbe * vb;
                 // Swap back
                 for (unsigned idx = 0; idx < 3; ++idx) 
                 {
@@ -414,7 +413,6 @@ namespace ACROBAT
      	 * as a pair: (number of revolutions, status on n-th revolutions). This allows us to populate the relevant vectors in the mapping
      	 * for its starting point.
      	 */
-        std::cout << "Rank, poolSize" << myRank << " " << poolSize << std::endl;
      	for (long i = myRank; i < domainExtentX; i += poolSize)
      	{
      		for (long j = 0; j < domainExtentY; ++j)
@@ -423,11 +421,6 @@ namespace ACROBAT
                 Point<double> tmpPoint = field.getValue(i, j);
      			std::vector<double> startingPoint = tmpPoint.state; // emeField.getValue returns Point<fieldType>
      			/* Integrate it forward and get the status */
-                // for (unsigned dim = 0; dim < 6; ++dim)
-                // {
-                //     std::cout << startingPoint[dim] << ",";
-                // }
-                // std::cout << std::endl;
      			std::pair<int, int> forwardStatus = getStatus(stabNum, startingPoint);
      			/* Integrate it backward and get the status */
      			std::pair<int, int> backwardStatus = getStatus(-1, startingPoint);
@@ -452,7 +445,6 @@ namespace ACROBAT
             }
      		if (myRank == 0) std::cout << "Finished integrating " << static_cast<double>(i) / domainExtentX * 100 << "% of trajectories." << "\n";
      	}
-<<<<<<< HEAD
     }
 
     /* @brief Outputs the set mapping generated previously
