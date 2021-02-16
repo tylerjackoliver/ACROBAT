@@ -452,6 +452,7 @@ namespace ACROBAT
             }
      		if (myRank == 0) std::cout << "Finished integrating " << static_cast<double>(i) / domainExtentX * 100 << "% of trajectories." << "\n";
      	}
+<<<<<<< HEAD
     }
 
     /* @brief Outputs the set mapping generated previously
@@ -514,6 +515,6 @@ namespace ACROBAT
             }
         }
     }
-
+    
 }
 #endif
