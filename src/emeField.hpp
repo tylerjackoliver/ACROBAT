@@ -215,7 +215,7 @@ namespace ACROBAT
         getBMEtoEMERotationMatrix(PARAMS::EPOCH, Qbe, QbeDeriv);
 
         // Apply Qbe to every state in bmeField
-        #pragma omp parallel for shared(Qbe, QbeDeriv)
+        // #pragma omp parallel for shared(Qbe, QbeDeriv)
         for (unsigned int i = 0; i < bmeField.getXExtent(); ++i)
         {
             for (unsigned int j = 0; j < bmeField.getYExtent(); ++j)
@@ -232,6 +232,7 @@ namespace ACROBAT
                 // Compute
                 xe = Qbe * xb;
                 ve = QbeDeriv * xb + Qbe * vb;
+                // ve = Qbe * vb;
                 // Swap back
                 for (unsigned idx = 0; idx < 3; ++idx) 
                 {
@@ -481,7 +482,7 @@ namespace ACROBAT
                         fieldType& field, std::vector<std::vector<pointType>>& points)
     {
         /* First, extract the n-forward points */
-        std::vector<std::pair<int, int> > nForward = forwardSet[stabNumber-1][2];
+        std::vector<std::pair<int, int> > nForward = forwardSet[stabNumber][2];
         /* Now the -1-backwards */
         std::vector<std::pair<int, int> > nBackward = backwardSet[0][1];
         int progressCounter = 0, myRank, poolSize;
@@ -503,10 +504,41 @@ namespace ACROBAT
             progressCounter++;
             if (myRank == 0)
             {
-                std::cout << "Completed extracting " << static_cast<double>(progressCounter) / nForward.size() * 100 << "%." << "\n";
+                // std::cout << "Completed extracting " << static_cast<double>(progressCounter) / nForward.size() * 100 << "%." << "\n";
             }
         }
     }
-    
+
+    /* Write all the sets associated with a field */
+    template <typename PointType, typename fieldType>
+    void writeAllSets(const int stabNum, std::unordered_map<int, std::vector<std::vector<std::pair<int, int>>>>& forwardSet,
+                      std::unordered_map<int, std::vector<std::vector<std::pair<int, int>>>>& backwardSet,
+                      fieldType& field)
+    {
+        std::unordered_map<int, std::string> setNames = { {0, "Crashed"},
+                                                          {1, "Escaped"},
+                                                          {2, "Stable"},
+                                                          {3, "Acrobatic"} };
+        for (unsigned i = 0; i <= stabNum; ++i)
+        {
+            for (unsigned statusNum = 0; statusNum <= 3; ++statusNum)
+            {
+                std::ofstream output;
+                output.open("../results/"+setNames[statusNum] + "_" + std::to_string(i));
+                std::vector<std::pair<int, int>> theseConditions = forwardSet[i][statusNum];
+                for (std::pair<int, int>& pair : theseConditions)
+                {
+                    Point<pointType> tmpPoint = field.getValue(pair.first, pair.second);
+                    for (size_t dimension = 0; dimension < tmpPoint.state.size(); ++dimension)
+                    {
+                        output << tmpPoint.state[dimension] << ",";
+                    }
+                    output << '\n';
+                }
+                output.close();
+            }
+        }
+    }
+
 }
 #endif
