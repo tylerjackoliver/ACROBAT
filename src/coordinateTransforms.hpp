@@ -73,7 +73,7 @@ void getBMEtoEMERotationMatrix(const double& epoch, Eigen::Matrix<double, 3, 3>&
 {
 	double alpha, delta, alphaDeriv, deltaDeriv;
 	RADEC::getAlphaDelta(epoch, alpha, delta);
-	RADEC::alphaDeltaDerivatives(alphaDeriv, deltaDeriv); // Derivatives with respect to time
+	RADEC::alphaDeltaDerivatives(epoch, alphaDeriv, deltaDeriv); // Derivatives with respect to time
 
 	/* Construct the rotation matrix */
 	double sina = std::sin(alpha);
@@ -85,9 +85,9 @@ void getBMEtoEMERotationMatrix(const double& epoch, Eigen::Matrix<double, 3, 3>&
     rot(1, 0) = cosa;  rot(1,1) = -sina * sind; rot(1,2) = cosd * sina;
     rot(2, 0) = 0.0;   rot(2,1) = cosd;         rot(2,2) = sind;
     /* And now the derivative of the dRotation matrix */
-    dRot(0, 0) = -cosa; dRot(0, 1) = sina * sind * alphaDeriv - cosa * cosd * deltaDeriv; dRot(0, 2) = -(sina * cosd * alphaDeriv + deltaDeriv * sind * cosd);
-    dRot(1, 0) = -sina; dRot(1, 1) = -(cosa * sind * alphaDeriv + deltaDeriv * sina * cosd); dRot(1, 2) = -(sind * sina * deltaDeriv - cosd * cosa * alphaDeriv);
-    dRot(2, 0) = 0.0; dRot(2, 1) = -sind; dRot(2,2) = cosd;
+    dRot(0, 0) = -cosa * alphaDeriv; dRot(0, 1) = sina * sind * alphaDeriv - cosa * cosd * deltaDeriv; dRot(0, 2) = -(sina * cosd * alphaDeriv + deltaDeriv * sind * cosa);
+    dRot(1, 0) = -sina * alphaDeriv; dRot(1, 1) = -(cosa * sind * alphaDeriv + deltaDeriv * sina * cosd); dRot(1, 2) = -(sind * sina * deltaDeriv - cosd * cosa * alphaDeriv);
+    dRot(2, 0) = 0.0; dRot(2, 1) = -sind*deltaDeriv; dRot(2,2) = cosd*deltaDeriv;
 }
 
 
