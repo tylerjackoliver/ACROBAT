@@ -4,6 +4,7 @@
 #include "Params.hpp"
 #include <cmath>
 #include <mpi.h>
+#include "planetaryConstants.hpp"
 
 extern "C"
 {
@@ -57,16 +58,16 @@ void initialiseParams()
     SpiceDouble tempHostGM;
 
     /* Get GM for the HOST and TARGET planets */
-    bodvrd_c(PARAMS::TARGET.c_str(), "GM", 1, &itemsReturned, &PARAMS::targetGM); // (body, value, max items returned, actual items returned, where to store)
+    // bodvrd_c(PARAMS::TARGET.c_str(), "GM", 1, &itemsReturned, &PARAMS::targetGM); // (body, value, max items returned, actual items returned, where to store)
+    PARAMS::targetGM = PLANETARY_GM[PARAMS::TARGET];
     bodvrd_c(PARAMS::HOST.c_str(), "GM", 1, &itemsReturned, &PARAMS::hostGM);
     
     /* Get the GM for any additional planets */
     for (size_t idx = 0; idx < PARAMS::additionalPlanets.size(); ++idx)
     {
-        double temporaryGM;
-        bodvrd_c(PARAMS::additionalPlanets[idx].c_str(), "GM", 1, &itemsReturned, &temporaryGM);
+        double temporaryGM = PLANETARY_GM[PARAMS::additionalPlanets[idx]];
+        // bodvrd_c(PARAMS::additionalPlanets[idx].c_str(), "GM", 1, &itemsReturned, &temporaryGM);
         PARAMS::additionalPlanetsGM.insert(PARAMS::additionalPlanetsGM.end(), temporaryGM);
-        PARAMS::additionalPlanets[idx] += "_BARYCENTER";
     }
 
     /* Get the radii for the TARGET planet */
