@@ -114,7 +114,7 @@ void obtainZero(std::vector<double>& x0, std::vector<double>& xGuess, double& t0
     time_type lower, upper, mid;
     lower = std::min(currentTime.first, currentTime.second);
     upper = std::max(currentTime.first, currentTime.second);
-    const int maxIterations = 100;                                                              // Guards against stale while loop
+    const int maxIterations = 150;                                                              // Guards against stale while loop
     int numberOfIterations = 0;
 
     while (lower < upper && numberOfIterations < maxIterations)
