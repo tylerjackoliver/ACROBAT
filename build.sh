@@ -4,7 +4,7 @@ cd build/
 cmake ..
 make
 )
-(
-cd bin/
-./ACROBAT
-)
+#(
+#cd bin/
+#mpirun -np 8 ./ACROBAT
+#)

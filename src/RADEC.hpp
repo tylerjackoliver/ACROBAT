@@ -89,7 +89,7 @@ namespace RADEC
 
     void getAlphaDelta(const double& epoch, double& alpha, double& delta)
     {
-        mercuryRADEC(epoch, alpha, delta);
+        europaRADEC(epoch, alpha, delta);
     }
 
     void mercuryDerivatives(const double& epoch, double& dAlpha, double& dDelta)
@@ -100,7 +100,7 @@ namespace RADEC
 
     void alphaDeltaDerivatives(const double& epoch, double& dAlpha, double &dDelta)
     {
-    	mercuryDerivatives(epoch, dAlpha, dDelta);
+    	europaDerivatives(epoch, dAlpha, dDelta);
     }
 }
 #endif

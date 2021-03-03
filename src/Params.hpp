@@ -15,23 +15,22 @@ namespace PARAMS
     /* Eccentricity of the ballistic capture orbit */ 
     const double ECC = 0.95;
     /* Inclination of the ballistic capture plane */
-    const double INC   = 45.04*std::atan(1.0)*4.0 / 180.;
-    // const double INC = 45.00 * std::atan(1.0) * 4.0 / 180.;
+    // const double INC   = 45.04*std::atan(1.0)*4.0 / 180.;
+    const double INC = 45.00 * std::atan(1.0) * 4.0 / 180.;
     /* Longitude of the ballistic capture orbit */
-    const double LONGTD= 202.5 * 4.0 * std::atan(1.0) / 180.;
-    // const double LONGTD = 233.82 * std::atan(1.0) * 4.0 / 180.; 
+    // const double LONGTD= 202.5 * 4.0 * std::atan(1.0) / 180.;
+    const double LONGTD = 233.82 * std::atan(1.0) * 4.0 / 180.; 
     /* Epoch of the transfer */
-    const double EPOCH = 634798080; // Mercury
-    // const double EPOCH = 631341216; //Europa
+    // const double EPOCH = 634798080; // Mercury
+    double EPOCH =  631341285.1839851;//Europa
     // const double EPOCH = 634506048;// Earth
     /* Common identifier or SPK ID of the TARGET */
-    std::string TARGET="Mercury";
+    std::string TARGET="Europa";
     /* Common identifier or SPK ID of the HOST */
-    std::string HOST = "Sun";
+    std::string HOST = "Jupiter";
     /* Additional planets to consider */
-    std::vector<std::string> additionalPlanets = {"Venus", "Jupiter", "Saturn", "Io", "Europa", "Ganymede", "Callisto", "Titan", "Titania", "Charon"};
-    // std::vector<std::string> additionalPlanets = {"Sun",
-    // "Saturn", "Io", "Ganymede", "Callisto"}; // Europa study
+    // std::vector<std::string> additionalPlanets = {"Venus", "Jupiter", "Saturn", "Io", "Europa", "Ganymede", "Callisto", "Titan", "Titania", "Charon"};
+    std::vector<std::string> additionalPlanets = {"Sun", "Saturn", "Io", "Ganymede", "Callisto"}; // Europa study
     // std::vector<std::string> additionalPlanets = {"Moon", "Jupiter", "Saturn"};
 
     /* ~~~~~~ Derived parameters ~~~~~~ */

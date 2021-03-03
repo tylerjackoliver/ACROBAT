@@ -31,7 +31,6 @@ struct opts
 
 opts OPTIONS;
 
-
 /* @brief Computes derived problem parameters from the independent problem parameters given in Params.hpp
    
    The independent problem variables are the target and host planets, defined by std::strings of their IAU
@@ -60,18 +59,23 @@ void initialiseParams()
     /* Get GM for the HOST and TARGET planets */
     // bodvrd_c(PARAMS::TARGET.c_str(), "GM", 1, &itemsReturned, &PARAMS::targetGM); // (body, value, max items returned, actual items returned, where to store)
     PARAMS::targetGM = PLANETARY_GM[PARAMS::TARGET];
-    bodvrd_c(PARAMS::HOST.c_str(), "GM", 1, &itemsReturned, &PARAMS::hostGM);
+    PARAMS::hostGM = PLANETARY_GM[PARAMS::HOST];
     
     /* Get the GM for any additional planets */
     for (size_t idx = 0; idx < PARAMS::additionalPlanets.size(); ++idx)
     {
         double temporaryGM = PLANETARY_GM[PARAMS::additionalPlanets[idx]];
-        // bodvrd_c(PARAMS::additionalPlanets[idx].c_str(), "GM", 1, &itemsReturned, &temporaryGM);
         PARAMS::additionalPlanetsGM.insert(PARAMS::additionalPlanetsGM.end(), temporaryGM);
+        std::cout << PARAMS::additionalPlanets[idx] << " " << PARAMS::additionalPlanetsGM[idx] << std::endl;
     }
 
     /* Get the radii for the TARGET planet */
     bodvrd_c(PARAMS::TARGET.c_str(), "RADII", 3, &itemsReturned, targetRadii);
+    double holderEpoch = PARAMS::EPOCH;
+    std::cout << "epoch before " << PARAMS::EPOCH << std::endl;
+    str2et_c("2458852.19 JD", &PARAMS::EPOCH);
+    std::cout << "epoch after " << PARAMS::EPOCH << std::endl;
+    std::cout << "difference: " << PARAMS::EPOCH - holderEpoch << std::endl;
 
     /* Compute average Radii from the given directions */
     for (size_t idx = 0; idx < itemsReturned; ++idx)
@@ -80,6 +84,7 @@ void initialiseParams()
     }
     avgTargetRadii /= itemsReturned;
     PARAMS::R = avgTargetRadii;
+    std::cout << "The radius of europa is " << PARAMS::R << std::endl;
 
     /* Compute the sphere of influence of the given planet - assumed to be a perfect sphere.
        For this, we need the distance between the HOST and the TARGET. We'll therefore use SPKPOS_C
@@ -97,13 +102,15 @@ void initialiseParams()
     
     // Finally, can compute the sphere of influence (R_SOI = (mTarg/mHost)^(2/5) * R_distance)
     PARAMS::RS = std::pow(PARAMS::targetGM / PARAMS::hostGM, 2./5.) * (oes[0] / (1-oes[1]));
+    std::cout << "The sphere of influence is " << PARAMS::RS / PARAMS::R << std::endl;
 
     /* Now, we can get the Mean anomaly of the TARGET around the HOST using the orbital elements of TARGET about HOST
       and the given computational epoch */
     PARAMS::M = oes[5];
 
     /* And set the maximum time for the trajectory to be acrobatic in non-dimensional units */
-    PARAMS::maxT = 8.0 * (4.0 * std::atan(1.0)) * std::pow(PARAMS::RS/PARAMS::R, 1.5);
+    double maxT_dim = 8.0 * (4.0 * std::atan(1.0)) * std::sqrt( std::pow(PARAMS::RS, 3) / PARAMS::targetGM);
+    PARAMS::maxT = maxT_dim * std::sqrt( PARAMS::targetGM / std::pow(PARAMS::R, 3) );
 }
 
 void welcomeMessage()

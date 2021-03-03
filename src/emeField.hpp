@@ -231,8 +231,7 @@ namespace ACROBAT
                 }
                 // Compute
                 xe = Qbe * xb;
-                ve = QbeDeriv * xb + Qbe * vb;
-                // ve = Qbe * vb;
+                ve = Qbe * vb; 
                 // Swap back
                 for (unsigned idx = 0; idx < 3; ++idx) 
                 {
@@ -302,7 +301,7 @@ namespace ACROBAT
     * @returns std::pair<int, int> of the final number of orbits completed, and the status on the n-th revolution
     */
     template <typename integerType, typename vectorType>
-    std::pair<int, int> getStatus(const integerType stabNumber, std::vector<vectorType>& startingPoint)
+    std::pair<int, int> getStatus(const integerType stabNumber, std::vector<vectorType>& startingPoint, bool flag)
     {
         /* Conditions in EMEField need to be non-dimensionalised for the integration to take place correctly.
             * The normalisation prevents errors occurring when the motion is close to the target body.
@@ -316,26 +315,31 @@ namespace ACROBAT
         getNonDimState(startingPoint, nonDimStartingPoint);
         nonDimCurrentPoint = nonDimStartingPoint; // On the first orbit, all three are equal
         nonDimInitialCondition = nonDimStartingPoint;
-
+        std::ofstream output, planeintersections;
+        std::cout << nonDimStartingPoint[0] << " " << nonDimStartingPoint[1] << " " << nonDimStartingPoint[2] << " " << nonDimStartingPoint[3] << " " << nonDimStartingPoint[4] << " " << nonDimStartingPoint[5] << '\n';
+        output.open("../testIntegrationStates");
+        planeintersections.open("../intersections");
         // std::cout << "starting point " << nonDimCurrentPoint[0] << " " << nonDimCurrentPoint[1] << " " << nonDimCurrentPoint[2] << '\n';    
-
-        /* Initialise integration stepper */
-        boost::numeric::odeint::runge_kutta_fehlberg78<std::vector<vectorType>> method;
-        auto stepper = boost::numeric::odeint::make_controlled(1.e-014, 1.e-014, method); // relTol, absTol, method
-        int integrationDirection = sgn(stabNumber); // Returns (1, 0, -1) depending on sign
-        double dt = 0.01 * integrationDirection;
 
         /* Initialise output result */
         std::pair<int, int> result = std::make_pair(-1, -1); // Initialise to "impossible" number to check assignment later
-
-        int n;
-        for(n = 0; std::abs(n) < std::abs(stabNumber); n += integrationDirection) // Abs and integrationDirection allow for -ve or +ve time
+        int n = 0;
+        double currentIntegrationTime = 0.0;
+        while ( std::abs(n) < std::abs(stabNumber) )
         {
+            // std::cout << n << std::endl;
+            /* Initialise integration stepper */
+            boost::numeric::odeint::runge_kutta_fehlberg78<std::vector<vectorType>> method;
+            auto stepper = boost::numeric::odeint::make_controlled(1.e-014, 1.e-014, method); // relTol, absTol, method
+            int integrationDirection = sgn(stabNumber); // Returns (1, 0, -1) depending on sign
+            double dt = 0.01 * integrationDirection;
             int integrationStatus = 0;
-            double previousConditionOne = 1.0 * integrationDirection;
-            /* Begin running through revolutions */
-            double currentIntegrationTime = 0.0;
 
+            /* Make first step to force update */
+            makeStep(stepper, nonDimCurrentPoint, currentIntegrationTime, dt);
+            double previousConditionOne = getConditionOneIntrinsic(nonDimCurrentPoint, nonDimStartingPoint);    
+
+            /* Begin running through revolutions */
             while (integrationStatus == 0)
             {
                 /* Make a step on the trajectory */
@@ -343,13 +347,13 @@ namespace ACROBAT
                 /* Obtain the status of the trajectory.
                     * 0 => nothing to report, continue
                     * 1 => crashed
-                    * 2 => escaped
-                    * 3 => full revolution
+                    * 2 => escaped                                     
+                    * 3 => _potentially_ a full revolution
                     * 4 => acrobatic
                     */
-            
-                integrationStatus = integrationController(nonDimCurrentPoint, nonDimInitialCondition, nonDimStartingPoint,
-                                                            currentIntegrationTime, previousConditionOne);
+                integrationStatus = integrationController(n, nonDimCurrentPoint, nonDimInitialCondition, nonDimStartingPoint,
+                                                          currentIntegrationTime, previousConditionOne);
+                output << nonDimCurrentPoint[0] << " " << nonDimCurrentPoint[1] << " " << nonDimCurrentPoint[2] << std::endl;
             }
             if ( integrationStatus != 3)
             {
@@ -362,7 +366,24 @@ namespace ACROBAT
                     /* If it went round on its orbit, we're going to continue the integration from here. We need to find the
                         * exact (ish) point it completed its revolution, and reset the definitions of currentPoint etc. accordingly
                         */
-                    obtainZero(nonDimInitialCondition, nonDimCurrentPoint, currentIntegrationTime);
+                    obtainZero(nonDimStartingPoint, nonDimCurrentPoint, currentIntegrationTime);
+                    Eigen::Matrix<double, 3, 1> r, r0, v0, v, rkm1, vkm1;
+                    for (size_t idx = 0; idx < 3; ++idx)
+                    {
+                        r(idx) = nonDimCurrentPoint[idx];
+                        r0(idx) = nonDimStartingPoint[idx];
+                        v(idx) = nonDimCurrentPoint[idx+3];
+                        v0(idx) = nonDimStartingPoint[idx+3];
+                        rkm1(idx) = nonDimInitialCondition[idx];
+                        vkm1(idx) = nonDimInitialCondition[idx+3];
+                    }
+                    planeintersections << r << '\n' << v << std::endl;
+                    std::cout << "Condition One is " << getConditionOneIntrinsic(nonDimCurrentPoint, nonDimStartingPoint) << " Condition Two and Three are " << r.dot(r0) << " " << v.dot(v0) * vkm1.dot(v0) << std::endl;
+                    if ( getConditionTwoAndThree(nonDimCurrentPoint, nonDimInitialCondition, nonDimStartingPoint) ) n += integrationDirection;
+                    if ( r.dot(r0) > 0) nonDimInitialCondition = nonDimCurrentPoint;
+                } else
+                {
+                    n += integrationDirection;
                 }
             }
         }
@@ -422,9 +443,10 @@ namespace ACROBAT
                 Point<double> tmpPoint = field.getValue(i, j);
      			std::vector<double> startingPoint = tmpPoint.state; // emeField.getValue returns Point<fieldType>
      			/* Integrate it forward and get the status */
-     			std::pair<int, int> forwardStatus = getStatus(stabNum, startingPoint);
+     			std::pair<int, int> forwardStatus = getStatus(stabNum, startingPoint, j == 19);
+                std::cout << "Forward status: " << forwardStatus.first << " " << forwardStatus.second << '\n';
      			/* Integrate it backward and get the status */
-     			std::pair<int, int> backwardStatus = getStatus(-1, startingPoint);
+     			std::pair<int, int> backwardStatus = getStatus(-1, startingPoint, j == 19);
      			/* Add the relevant positions to the final set mapping
      			 * The first value in the pair goes up to the final revolution number;
      			 * the second is the status at the final revolution.
@@ -510,7 +532,7 @@ namespace ACROBAT
     }
 
     /* Write all the sets associated with a field */
-    template <typename PointType, typename fieldType>
+    template <typename fieldType>
     void writeAllSets(const int stabNum, std::unordered_map<int, std::vector<std::vector<std::pair<int, int>>>>& forwardSet,
                       std::unordered_map<int, std::vector<std::vector<std::pair<int, int>>>>& backwardSet,
                       fieldType& field)
@@ -528,7 +550,26 @@ namespace ACROBAT
                 std::vector<std::pair<int, int>> theseConditions = forwardSet[i][statusNum];
                 for (std::pair<int, int>& pair : theseConditions)
                 {
-                    Point<pointType> tmpPoint = field.getValue(pair.first, pair.second);
+                    Point<double> tmpPoint = field.getValue(pair.first, pair.second);
+                    for (size_t dimension = 0; dimension < tmpPoint.state.size(); ++dimension)
+                    {
+                        output << tmpPoint.state[dimension] << ",";
+                    }
+                    output << '\n';
+                }
+                output.close();
+            }
+        }
+        for (unsigned i = 0; i <= 1; ++i)
+        {
+            for (unsigned statusNum = 0; statusNum <= 3; ++statusNum)
+            {
+                std::ofstream output;
+                output.open("../results/backward"+setNames[statusNum] + "_" + std::to_string(i));
+                std::vector<std::pair<int, int>> theseConditions = backwardSet[i][statusNum];
+                for (std::pair<int, int>& pair : theseConditions)
+                {
+                    Point<double> tmpPoint = field.getValue(pair.first, pair.second);
                     for (size_t dimension = 0; dimension < tmpPoint.state.size(); ++dimension)
                     {
                         output << tmpPoint.state[dimension] << ",";

@@ -230,6 +230,45 @@ void getDimensionalPlanetVelocity(std::string& targ, Eigen::Matrix<Type, 3, 1>& 
     for (size_t idx = 0; idx < 3; ++idx) r(idx) = state[idx + 3];
 }
 
+/* @brief Computes the cross product of two size-3 std::vectors.
+ * @param[in] a The first vector in the cross product
+ * @param[in] b The second vector in the cross product
+ * @param[out] c The last vector in the cross product. Space is reserved if it does not already exist.
+ */
+void cross3(std::vector<double> &a, std::vector<double>& b, std::vector<double>& c)
+{
+    if (a.size() != 3 or b.size() != 3)
+    {
+        throw std::domain_error("One of the input vectors to cross3 are not of size 3.");
+    }
+    // Reserve space in c
+    c.reserve(3);
+    // Compute
+    c[0] = a[1] * b[2] - a[2] * b[1];
+    c[1] = a[2] * b[0] - a[0] * b[2];
+    c[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+/* @brief Computes the dot product of two std::vectors. The vectors must be the same size.
+ * @param[in] a The first vector in the dot product
+ * @param[in] b The second vector in the dot product
+ * @returns dot The result of the dot product.
+ */
+template <typename Type>
+Type dotProduct(std::vector<Type>& a, std::vector<Type>& b)
+{
+    Type dot = 0;                                                                               // Output
+    if (a.size() != b.size())                                                                   // Check valid inputs
+    {
+        throw std::domain_error("The input vectors to dotProduct are not the same size.");
+    }
+    for (size_t idx = 0; idx < a.size(); ++idx)
+    {
+        dot += a[idx] * b[idx];                                                                 // Intel compiler will auto-unroll this for -O2
+    }
+    return dot;
+}
+
 /* @brief C++ wrapper to the SPICE orbital element routines.
  * @param[in] t: Time (ephemeris seconds) at which the orbital elements are required.
  * @param[in] body: String identifying the body the orbital elements are sought for.
@@ -293,7 +332,6 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
     }
 
     // Now the not-so-trivial
-
     double dimensionalTime = getDimensionalTime(t);
     double currentTime = PARAMS::EPOCH + dimensionalTime; // t is measured in seconds
 
@@ -315,7 +353,6 @@ void forceFunction(const std::vector<double> &x, std::vector<double> &dx, const 
         planetParticleDifference = positionVector - planetVector;
         solarTerm += tmpNormalGM * ( (planetVector / std::pow(planetVector.norm(), 3) ) + ( planetParticleDifference / std::pow(planetParticleDifference.norm(), 3)) );
     }
-    
     velocityVector -= solarTerm;
     for (size_t i = 0; i < 3; ++i) dx[i+3] = velocityVector(i);
 }
@@ -410,6 +447,21 @@ void nbody(const std::vector<double> &x, std::vector<double> &dx, const double t
 
 }
 
+double getConditionOneIntrinsic(std::vector<double>& state, std::vector<double>& x0)
+{
+    std::vector<double> r0(3), v0(3), r(3), v(3), angularMomentum0(3), angMomentumCrossR0(3);
+    for (int idx = 0; idx < 3; ++idx)
+    {
+        r0[idx] = x0[idx];
+        v0[idx] = x0[idx+3];
+        r[idx] = state[idx];
+        v[idx] = state[idx + 3];
+    }
+    cross3(r0, v0, angularMomentum0);
+    cross3(angularMomentum0, r0, angMomentumCrossR0);
+    return dotProduct(r, angMomentumCrossR0);
+}
+
 /* @brief Custom integration observer function; returns various status integers depending on whether stopping conditions have been triggered.
    @param[in] x Eigen::Matrix<Type, 6> containing the state vector of the particle at the given point.
    @param[in] x0 Eigen::Matrix<Type, 6> containing the initial position of the particle on the given trajectory
@@ -426,7 +478,7 @@ void nbody(const std::vector<double> &x, std::vector<double> &dx, const double t
     4: Trajectory is acrobatic (nothing happens!)
 */
 // template <typename Type>
-int integrationController(std::vector<double> &x, std::vector<double>& xkm1, std::vector<double>& x0, const double t, double & prevCondOne)
+int integrationController(const int currentRevolutionNumber, std::vector<double> &x, std::vector<double>& xkm1, std::vector<double>& x0, double& t, double & prevCondOne)
 {
     Eigen::Matrix<double, 3, 1> r, r0, v0, v, rkm1, vkm1;
     for (size_t idx = 0; idx < 3; ++idx)
@@ -454,25 +506,31 @@ int integrationController(std::vector<double> &x, std::vector<double>& xkm1, std
     {
         return 2;
     }
-
+    std::vector<double> rVector(3), r0Vector(3), v0Vector(3);
+    for (size_t idx = 0; idx < 3; ++idx)
+    {
+        rVector[idx] = x[idx];
+        r0Vector[idx] = x0[idx];
+        v0Vector[idx] = x0[idx+3];
+    }
     // Now, check for weakly stable
     Eigen::Matrix<double, 3, 1> angMomentum0 = r0.cross(v0);
-    double conditionOne = r.dot(angMomentum0.cross(r0));
+    // double conditionOne = r.dot(angMomentum0.cross(r0));
+    double conditionOne = getConditionOneIntrinsic(x, x0);
     bool signChange = std::signbit(conditionOne * prevCondOne); // Returns True if negative
 
     double conditionTwo = r.dot(r0);
     double conditionThree = v.dot(v0) * vkm1.dot(v0); // Supposed to be v.dot(v0) * v(k-1).dot(v0), but only doing one at a time here
-
-    if ( signChange && conditionTwo > 0 && conditionThree > 0) return 3;
+    // If nothing else
+    prevCondOne = conditionOne;
+    // if ( signChange && conditionTwo > 0 && conditionThree > 0) return 3;
+    if (signChange) return 3;
 
     // Lastly, check time
-    if (fabs(t) >= PARAMS::maxT)  // maxT is defined in interface.hpp as 4 orbits about the Hill region for the given body
+    if (fabs(t) >= (currentRevolutionNumber + 1) * PARAMS::maxT)  // maxT is defined in interface.hpp as 4 orbits about the Hill region for the given body
     {
         return 4;
     }
-
-    // If nothing else
-    prevCondOne = conditionOne;
     return 0;
 }
 

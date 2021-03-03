@@ -7,7 +7,7 @@ add_executable(ACROBAT
 )
 
 # Set flags
-target_compile_options(ACROBAT PRIVATE -qopenmp -ax=AVX2 -Wall -O2 -mkl -std=c++14)
+target_compile_options(ACROBAT PRIVATE -qopenmp -O0 -Wall -g -mkl -std=c++14)
 
 # Add linkers
 target_include_directories(ACROBAT PRIVATE ${CMAKE_BINARY_DIR}/../include/)
